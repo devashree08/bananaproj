@@ -18,7 +18,8 @@ const fetchCSFScopeData = async () => {
     const response = await axios.get("/api/v1/GetCSFScopeData", {
       headers: { "Content-Type": "application/json" },
     });
-    return response.data;
+
+    return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching CSF Scope data:", error);
     return [];
@@ -30,7 +31,7 @@ const CSFScopeTable = () => {
   const [expandedRows, setExpandedRows] = useState({}); // Track expanded/collapsed rows
   const [loading, setLoading] = useState(true);
 
-  // Fetch data securely using Axios
+  // Fetch and format data
   useEffect(() => {
     let isMounted = true;
     fetchCSFScopeData().then((data) => {
@@ -42,57 +43,62 @@ const CSFScopeTable = () => {
     return () => (isMounted = false); // Prevent memory leaks
   }, []);
 
-  // Convert API response from .NET Core (lowercase keys) to React-compatible naming
-  const normalizeApiData = useMemo(
-    () => (data) =>
-      data.map((item) => ({
-        subcategoryId: item.subcategoryId,
-        subcategoryName: item.subcategoryName,
-        relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
-        businessUnitAbbreviation: item.businessUnitAbbreviation,
-        auditorIsInScope: item.auditorIsInScope,
-        auditorJustification: item.auditorJustification,
-        auditorProfileType: item.auditorProfileType,
-        auditorConsumingFromBusinessUnit: item.auditorConsumingFromBusinessUnit,
-        subcatOwnerAcceptRecommendation: item.subcatOwnerAcceptRecommendation,
-        subcatOwnerIsInScope: item.subcatOwnerIsInScope,
-        subcatOwnerJustification: item.subcatOwnerJustification,
-        subcatOwnerProfileType: item.subcatOwnerProfileType,
-        subcatOwnerConsumingFromBusinessUnit: item.subcatOwnerConsumingFromBusinessUnit,
-      })),
-    []
-  );
+  // Normalize API response
+  const normalizeApiData = (data) => {
+    return data.map((item) => ({
+      subcategoryId: item.subcategoryId,
+      subcategoryName: item.subcategoryName,
+      relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
+      businessUnitAbbreviation: item.businessUnitAbbreviation,
+
+      // Auditor Fields
+      auditorIsInScope: item.auditorIsInScope ?? null,
+      auditorJustification: item.auditorJustification ?? null,
+      auditorProfileType: item.auditorProfileType ?? null,
+      auditorConsumingFromBusinessUnit: item.auditorConsumingFromBusinessUnit ?? null,
+
+      // Subcategory Owner Fields
+      subcatOwnerAcceptRecommendation: item.subcatOwnerAcceptRecommendation ?? null,
+      subcatOwnerIsInScope: item.subcatOwnerIsInScope ?? null,
+      subcatOwnerJustification: item.subcatOwnerJustification ?? null,
+      subcatOwnerProfileType: item.subcatOwnerProfileType ?? null,
+      subcatOwnerConsumingFromBusinessUnit: item.subcatOwnerConsumingFromBusinessUnit ?? null,
+    }));
+  };
 
   // Memoized Data Processing (Prevents Unnecessary Recomputations)
   const formatTableData = useMemo(() => (data) => {
     const normalizedData = normalizeApiData(data);
     const groupedData = [];
 
-    // Track subcategories already added
-    const subcategoryIdsAdded = new Set();
+    // Track added subcategories to prevent duplication
+    const subcategoryMap = new Map();
 
     normalizedData.forEach((item) => {
-      // Ensure each Subcategory is only added once as a parent row
-      if (!subcategoryIdsAdded.has(item.subcategoryId)) {
-        groupedData.push({
+      // Ensure each Subcategory is added only once
+      if (!subcategoryMap.has(item.subcategoryId)) {
+        subcategoryMap.set(item.subcategoryId, {
           id: `subcat-${item.subcategoryId}`,
           subcategoryId: item.subcategoryId,
           subcategoryName: item.subcategoryName,
           relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
           isGroup: true, // Flag for subcategory row
         });
-        subcategoryIdsAdded.add(item.subcategoryId);
       }
 
       // Add Business Unit as a child row under its Subcategory
       groupedData.push({
         id: `bu-${item.subcategoryId}-${item.businessUnitAbbreviation}`,
-        parentId: `subcat-${item.subcategoryId}`, // Links to parent
+        parentId: `subcat-${item.subcategoryId}`, // Links to correct parent
         businessUnitAbbreviation: item.businessUnitAbbreviation,
+
+        // Auditor Data
         auditorIsInScope: item.auditorIsInScope,
         auditorJustification: item.auditorJustification,
         auditorProfileType: item.auditorProfileType,
         auditorConsumingFromBusinessUnit: item.auditorConsumingFromBusinessUnit,
+
+        // Subcategory Owner Data
         subcatOwnerAcceptRecommendation: item.subcatOwnerAcceptRecommendation,
         subcatOwnerIsInScope: item.subcatOwnerIsInScope,
         subcatOwnerJustification: item.subcatOwnerJustification,
@@ -101,8 +107,9 @@ const CSFScopeTable = () => {
       });
     });
 
-    return groupedData;
-  }, [normalizeApiData]);
+    // Combine Subcategory parents with their Business Unit children
+    return [...subcategoryMap.values(), ...groupedData];
+  }, []);
 
   // Memoized Expand/Collapse Toggle Function
   const toggleRowExpansion = useCallback((subcatId) => {
@@ -149,22 +156,21 @@ const CSFScopeTable = () => {
           !params.row.isGroup ? <Checkbox checked={params.value} onChange={() => {}} /> : null,
       },
       { field: "auditorJustification", headerName: "Auditor - Justification", width: 250 },
+
+      // Subcategory Owner Fields
       {
-        field: "auditorProfileType",
-        headerName: "Auditor - Profile Type",
-        width: 200,
+        field: "subcatOwnerAcceptRecommendation",
+        headerName: "Owner - Accept Recommendation?",
+        width: 180,
         renderCell: (params) =>
           !params.row.isGroup ? (
-            <FormControl variant="standard" fullWidth>
-              <Select defaultValue={params.value} onChange={() => {}}>
-                <MenuItem value="Provider">Provider</MenuItem>
-                <MenuItem value="Consumer">Consumer</MenuItem>
-                <MenuItem value="Inheritor">Inheritor</MenuItem>
-                <MenuItem value="Both">Both</MenuItem>
-              </Select>
-            </FormControl>
+            <FormControlLabel
+              control={<Checkbox checked={params.value} onChange={() => {}} />}
+              label=""
+            />
           ) : null,
       },
+      { field: "subcatOwnerJustification", headerName: "Owner - Justification", width: 250 },
     ],
     [expandedRows, toggleRowExpansion]
   );
