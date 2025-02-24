@@ -1,144 +1,181 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { AgGridReact } from "ag-grid-react";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
+import React, { useState, useEffect } from "react";
+import { TreeView, TreeItem } from "@mui/lab";
+import { DataGrid } from "@mui/x-data-grid";
+import { ExpandMore, ChevronRight } from "@mui/icons-material";
+import {
+  FormControl,
+  MenuItem,
+  Select,
+  Checkbox,
+  FormControlLabel,
+  TextField,
+} from "@mui/material";
 
-const CSFScopeGrid = () => {
-    const [rowData, setRowData] = useState([]);
-    const [loading, setLoading] = useState(true);
+const CSFScopeTable = () => {
+  const [treeData, setTreeData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    // Fetch data from API
-    useEffect(() => {
-        fetch("/api/v1/GetCSFScopeData")
-            .then((response) => response.json())
-            .then((data) => {
-                // Transform the API response into a tree structure for AG-Grid
-                const formattedData = transformDataForTreeView(data);
-                setRowData(formattedData);
-                setLoading(false);
-            })
-            .catch((error) => {
-                console.error("Error fetching data:", error);
-                setLoading(false);
-            });
-    }, []);
+  // Fetch data from API
+  useEffect(() => {
+    fetch("/api/v1/GetCSFScopeData")
+      .then((response) => response.json())
+      .then((data) => {
+        setTreeData(formatTreeData(data));
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Error fetching data:", error);
+        setLoading(false);
+      });
+  }, []);
 
-    // Function to transform API response into a tree structure
-    const transformDataForTreeView = (data) => {
-        const groupedData = {};
+  // Transform API response into a tree structure
+  const formatTreeData = (data) => {
+    const groupedData = {};
 
-        data.forEach((item) => {
-            if (!groupedData[item.SubcategoryID]) {
-                groupedData[item.SubcategoryID] = {
-                    subcategoryRow: {
-                        SubcategoryID: item.SubcategoryID,
-                        SubcategoryName: item.SubcategoryName,
-                        SubcategoryDescription: item.SubcategoryDescription,
-                        RelatedCSF1_1Subcategories: item.RelatedCSF1_1Subcategories,
-                        treeLevel: 0, // Parent Level
-                    },
-                    businessUnits: [],
-                };
-            }
+    data.forEach((item) => {
+      if (!groupedData[item.SubcategoryID]) {
+        groupedData[item.SubcategoryID] = {
+          id: `subcat-${item.SubcategoryID}`,
+          SubcategoryID: item.SubcategoryID,
+          SubcategoryName: item.SubcategoryName,
+          SubcategoryDescription: item.SubcategoryDescription,
+          RelatedCSF1_1Subcategories: item.RelatedCSF1_1Subcategories,
+          businessUnits: [],
+        };
+      }
 
-            groupedData[item.SubcategoryID].businessUnits.push({
-                BusinessUnitName: item.BusinessUnitName,
-                BusinessUnitAbbreviation: item.BusinessUnitAbbreviation,
-                AuditorIsInScope: item.AuditorIsInScope,
-                AuditorJustification: item.AuditorJustification,
-                AuditorProfileType: item.AuditorProfileType,
-                AuditorConsumingFromBusinessUnit: item.AuditorConsumingFromBusinessUnit,
-                SubcatOwnerAcceptRecommendation: item.SubcatOwnerAcceptRecommendation,
-                SubcatOwnerIsInScope: item.SubcatOwnerIsInScope,
-                SubcatOwnerJustification: item.SubcatOwnerJustification,
-                SubcatOwnerProfileType: item.SubcatOwnerProfileType,
-                SubcatOwnerConsumingFromBusinessUnit: item.SubcatOwnerConsumingFromBusinessUnit,
-                treeLevel: 1, // Child Level
-                parentId: item.SubcategoryID, // Links to parent
-            });
-        });
+      groupedData[item.SubcategoryID].businessUnits.push({
+        id: `bu-${item.SubcategoryID}-${item.BusinessUnitAbbreviation}`,
+        BusinessUnitName: item.BusinessUnitName,
+        BusinessUnitAbbreviation: item.BusinessUnitAbbreviation,
+        AuditorIsInScope: item.AuditorIsInScope,
+        AuditorJustification: item.AuditorJustification,
+        AuditorProfileType: item.AuditorProfileType,
+        AuditorConsumingFromBusinessUnit: item.AuditorConsumingFromBusinessUnit,
+        SubcatOwnerAcceptRecommendation: item.SubcatOwnerAcceptRecommendation,
+        SubcatOwnerIsInScope: item.SubcatOwnerIsInScope,
+        SubcatOwnerJustification: item.SubcatOwnerJustification,
+        SubcatOwnerProfileType: item.SubcatOwnerProfileType,
+        SubcatOwnerConsumingFromBusinessUnit: item.SubcatOwnerConsumingFromBusinessUnit,
+      });
+    });
 
-        // Flatten into a single array
-        return Object.values(groupedData).flatMap((group) => [
-            group.subcategoryRow,
-            ...group.businessUnits,
-        ]);
-    };
+    return Object.values(groupedData);
+  };
 
-    // Column Definitions
-    const columnDefs = [
-        {
-            headerName: "CSF 2 Subcategory",
-            field: "SubcategoryName",
-            rowGroup: true,
-            hide: true,
-            cellRenderer: (params) => {
-                if (params.data.treeLevel === 0) {
-                    return (
-                        <strong>{params.value}</strong>
-                    );
-                }
-                return params.value;
-            },
-        },
-        { headerName: "Business Unit", field: "BusinessUnitName", width: 200 },
+  // Columns for DataGrid
+  const columns = [
+    { field: "BusinessUnitName", headerName: "Business Unit", width: 200 },
+    {
+      field: "AuditorIsInScope",
+      headerName: "Auditor - In Scope?",
+      width: 150,
+      renderCell: (params) => (
+        <Checkbox checked={params.value} onChange={() => {}} />
+      ),
+    },
+    {
+      field: "AuditorJustification",
+      headerName: "Auditor - Justification",
+      width: 250,
+      renderCell: (params) => (
+        <TextField
+          variant="standard"
+          fullWidth
+          defaultValue={params.value}
+          onChange={() => {}}
+        />
+      ),
+    },
+    {
+      field: "AuditorProfileType",
+      headerName: "Auditor - Profile Type",
+      width: 200,
+      renderCell: (params) => (
+        <FormControl variant="standard" fullWidth>
+          <Select defaultValue={params.value} onChange={() => {}}>
+            <MenuItem value="Provider">Provider</MenuItem>
+            <MenuItem value="Consumer">Consumer</MenuItem>
+            <MenuItem value="Inheritor">Inheritor</MenuItem>
+            <MenuItem value="Both">Both</MenuItem>
+          </Select>
+        </FormControl>
+      ),
+    },
+    {
+      field: "SubcatOwnerAcceptRecommendation",
+      headerName: "Owner - Accept Recommendation?",
+      width: 180,
+      renderCell: (params) => (
+        <FormControlLabel
+          control={<Checkbox checked={params.value} onChange={() => {}} />}
+          label=""
+        />
+      ),
+    },
+    {
+      field: "SubcatOwnerJustification",
+      headerName: "Owner - Justification",
+      width: 250,
+      renderCell: (params) => (
+        <TextField
+          variant="standard"
+          fullWidth
+          defaultValue={params.value}
+          onChange={() => {}}
+        />
+      ),
+    },
+    {
+      field: "SubcatOwnerProfileType",
+      headerName: "Owner - Profile Type",
+      width: 200,
+      renderCell: (params) => (
+        <FormControl variant="standard" fullWidth>
+          <Select defaultValue={params.value} onChange={() => {}}>
+            <MenuItem value="Provider">Provider</MenuItem>
+            <MenuItem value="Consumer">Consumer</MenuItem>
+            <MenuItem value="Inheritor">Inheritor</MenuItem>
+            <MenuItem value="Both">Both</MenuItem>
+          </Select>
+        </FormControl>
+      ),
+    },
+  ];
 
-        // Auditor Fields
-        {
-            headerName: "Auditor - Is In Scope?",
-            field: "AuditorIsInScope",
-            editable: true,
-            cellRenderer: "agCheckboxCellRenderer",
-        },
-        { headerName: "Auditor - Justification", field: "AuditorJustification", editable: true },
-        {
-            headerName: "Auditor - Profile Type",
-            field: "AuditorProfileType",
-            editable: true,
-            cellEditor: "agSelectCellEditor",
-            cellEditorParams: { values: ["Provider", "Consumer", "Inheritor", "Both"] },
-        },
-        { headerName: "Auditor - Consuming From", field: "AuditorConsumingFromBusinessUnit", editable: true },
-
-        // Subcategory Owner Fields
-        {
-            headerName: "Owner - Accept Recommendation?",
-            field: "SubcatOwnerAcceptRecommendation",
-            editable: true,
-            cellRenderer: "agCheckboxCellRenderer",
-        },
-        {
-            headerName: "Owner - Is In Scope?",
-            field: "SubcatOwnerIsInScope",
-            editable: true,
-            cellRenderer: "agCheckboxCellRenderer",
-        },
-        { headerName: "Owner - Justification", field: "SubcatOwnerJustification", editable: true },
-        {
-            headerName: "Owner - Profile Type",
-            field: "SubcatOwnerProfileType",
-            editable: true,
-            cellEditor: "agSelectCellEditor",
-            cellEditorParams: { values: ["Provider", "Consumer", "Inheritor", "Both"] },
-        },
-        { headerName: "Owner - Consuming From", field: "SubcatOwnerConsumingFromBusinessUnit", editable: true },
-    ];
-
-    return (
-        <div className="ag-theme-alpine" style={{ height: "600px", width: "100%" }}>
-            {loading ? <p>Loading data...</p> : (
-                <AgGridReact
-                    rowData={rowData}
-                    columnDefs={columnDefs}
-                    treeData={true}
-                    getDataPath={(data) => data.treeLevel === 0 ? [data.SubcategoryName] : [data.SubcategoryName, data.BusinessUnitName]}
-                    autoGroupColumnDef={{ headerName: "CSF 2 Subcategory", field: "SubcategoryName", cellRenderer: "agGroupCellRenderer" }}
-                    pagination={true}
-                    paginationPageSize={20}
+  return (
+    <div>
+      <h2>CSF Scope Data</h2>
+      {loading ? (
+        <p>Loading data...</p>
+      ) : (
+        <TreeView
+          aria-label="CSF Scope Tree"
+          defaultCollapseIcon={<ExpandMore />}
+          defaultExpandIcon={<ChevronRight />}
+        >
+          {treeData.map((subcategory) => (
+            <TreeItem
+              key={subcategory.id}
+              nodeId={subcategory.id}
+              label={`${subcategory.SubcategoryName} - ${subcategory.SubcategoryDescription}`}
+            >
+              <div style={{ height: 250, width: "100%" }}>
+                <DataGrid
+                  rows={subcategory.businessUnits}
+                  columns={columns}
+                  getRowId={(row) => row.id}
+                  pageSize={5}
+                  disableSelectionOnClick
                 />
-            )}
-        </div>
-    );
+              </div>
+            </TreeItem>
+          ))}
+        </TreeView>
+      )}
+    </div>
+  );
 };
 
-export default CSFScopeGrid;
+export default CSFScopeTable;
