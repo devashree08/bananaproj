@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { TreeView, TreeItem } from "@mui/lab";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { DataGrid } from "@mui/x-data-grid";
-import { ExpandMore, ChevronRight } from "@mui/icons-material";
 import {
   FormControl,
   MenuItem,
@@ -9,170 +7,198 @@ import {
   Checkbox,
   FormControlLabel,
   TextField,
+  IconButton,
 } from "@mui/material";
+import { ExpandMore, ChevronRight } from "@mui/icons-material";
+
+// Secure API Fetch Function
+const fetchCSFScopeData = async () => {
+  try {
+    const response = await fetch("/api/v1/GetCSFScopeData", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) throw new Error("Failed to fetch data");
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching CSF Scope data:", error);
+    return [];
+  }
+};
 
 const CSFScopeTable = () => {
-  const [treeData, setTreeData] = useState([]);
+  const [tableData, setTableData] = useState([]);
+  const [expandedRows, setExpandedRows] = useState({}); // Track expanded/collapsed rows
   const [loading, setLoading] = useState(true);
 
-  // Fetch data from API
+  // Fetch and process data securely
   useEffect(() => {
-    fetch("/api/v1/GetCSFScopeData")
-      .then((response) => response.json())
-      .then((data) => {
-        setTreeData(formatTreeData(data));
+    let isMounted = true;
+    fetchCSFScopeData().then((data) => {
+      if (isMounted) {
+        const formattedData = formatTableData(data);
+        setTableData(formattedData);
         setLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error fetching data:", error);
-        setLoading(false);
-      });
+      }
+    });
+    return () => (isMounted = false); // Prevent memory leaks
   }, []);
 
-  // Transform API response into a tree structure
-  const formatTreeData = (data) => {
-    const groupedData = {};
+  // Convert API response from .NET Core (lowercase keys) to React-compatible naming
+  const normalizeApiData = useMemo(() => (data) =>
+    data.map((item) => ({
+      subcategoryId: item.subcategoryId,
+      subcategoryName: item.subcategoryName,
+      subcategoryDescription: item.subcategoryDescription,
+      relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
+      businessUnitName: item.businessUnitName,
+      businessUnitAbbreviation: item.businessUnitAbbreviation,
+      auditorIsInScope: item.auditorIsInScope,
+      auditorJustification: item.auditorJustification,
+      auditorProfileType: item.auditorProfileType,
+      auditorConsumingFromBusinessUnit: item.auditorConsumingFromBusinessUnit,
+      subcatOwnerAcceptRecommendation: item.subcatOwnerAcceptRecommendation,
+      subcatOwnerIsInScope: item.subcatOwnerIsInScope,
+      subcatOwnerJustification: item.subcatOwnerJustification,
+      subcatOwnerProfileType: item.subcatOwnerProfileType,
+      subcatOwnerConsumingFromBusinessUnit: item.subcatOwnerConsumingFromBusinessUnit,
+    }))
+  , []);
 
-    data.forEach((item) => {
-      if (!groupedData[item.SubcategoryID]) {
-        groupedData[item.SubcategoryID] = {
-          id: `subcat-${item.SubcategoryID}`,
-          SubcategoryID: item.SubcategoryID,
-          SubcategoryName: item.SubcategoryName,
-          SubcategoryDescription: item.SubcategoryDescription,
-          RelatedCSF1_1Subcategories: item.RelatedCSF1_1Subcategories,
-          businessUnits: [],
-        };
+  // Memoized Data Processing (Prevents Unnecessary Recomputations)
+  const formatTableData = useMemo(() => (data) => {
+    const normalizedData = normalizeApiData(data);
+    const groupedData = [];
+
+    normalizedData.forEach((item) => {
+      const subcategoryRow = groupedData.find((row) => row.id === `subcat-${item.subcategoryId}`);
+
+      if (!subcategoryRow) {
+        groupedData.push({
+          id: `subcat-${item.subcategoryId}`,
+          subcategoryId: item.subcategoryId,
+          subcategoryName: item.subcategoryName,
+          subcategoryDescription: item.subcategoryDescription,
+          relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
+          isGroup: true, // Flag for subcategory row
+        });
       }
 
-      groupedData[item.SubcategoryID].businessUnits.push({
-        id: `bu-${item.SubcategoryID}-${item.BusinessUnitAbbreviation}`,
-        BusinessUnitName: item.BusinessUnitName,
-        BusinessUnitAbbreviation: item.BusinessUnitAbbreviation,
-        AuditorIsInScope: item.AuditorIsInScope,
-        AuditorJustification: item.AuditorJustification,
-        AuditorProfileType: item.AuditorProfileType,
-        AuditorConsumingFromBusinessUnit: item.AuditorConsumingFromBusinessUnit,
-        SubcatOwnerAcceptRecommendation: item.SubcatOwnerAcceptRecommendation,
-        SubcatOwnerIsInScope: item.SubcatOwnerIsInScope,
-        SubcatOwnerJustification: item.SubcatOwnerJustification,
-        SubcatOwnerProfileType: item.SubcatOwnerProfileType,
-        SubcatOwnerConsumingFromBusinessUnit: item.SubcatOwnerConsumingFromBusinessUnit,
+      groupedData.push({
+        id: `bu-${item.subcategoryId}-${item.businessUnitAbbreviation}`,
+        parentId: `subcat-${item.subcategoryId}`, // Links to parent
+        businessUnitName: item.businessUnitName,
+        businessUnitAbbreviation: item.businessUnitAbbreviation,
+        auditorIsInScope: item.auditorIsInScope,
+        auditorJustification: item.auditorJustification,
+        auditorProfileType: item.auditorProfileType,
+        auditorConsumingFromBusinessUnit: item.auditorConsumingFromBusinessUnit,
+        subcatOwnerAcceptRecommendation: item.subcatOwnerAcceptRecommendation,
+        subcatOwnerIsInScope: item.subcatOwnerIsInScope,
+        subcatOwnerJustification: item.subcatOwnerJustification,
+        subcatOwnerProfileType: item.subcatOwnerProfileType,
+        subcatOwnerConsumingFromBusinessUnit: item.subcatOwnerConsumingFromBusinessUnit,
       });
     });
 
-    return Object.values(groupedData);
-  };
+    return groupedData;
+  }, [normalizeApiData]);
 
-  // Columns for DataGrid
-  const columns = [
-    { field: "BusinessUnitName", headerName: "Business Unit", width: 200 },
-    {
-      field: "AuditorIsInScope",
-      headerName: "Auditor - In Scope?",
-      width: 150,
-      renderCell: (params) => (
-        <Checkbox checked={params.value} onChange={() => {}} />
-      ),
-    },
-    {
-      field: "AuditorJustification",
-      headerName: "Auditor - Justification",
-      width: 250,
-      renderCell: (params) => (
-        <TextField
-          variant="standard"
-          fullWidth
-          defaultValue={params.value}
-          onChange={() => {}}
-        />
-      ),
-    },
-    {
-      field: "AuditorProfileType",
-      headerName: "Auditor - Profile Type",
-      width: 200,
-      renderCell: (params) => (
-        <FormControl variant="standard" fullWidth>
-          <Select defaultValue={params.value} onChange={() => {}}>
-            <MenuItem value="Provider">Provider</MenuItem>
-            <MenuItem value="Consumer">Consumer</MenuItem>
-            <MenuItem value="Inheritor">Inheritor</MenuItem>
-            <MenuItem value="Both">Both</MenuItem>
-          </Select>
-        </FormControl>
-      ),
-    },
-    {
-      field: "SubcatOwnerAcceptRecommendation",
-      headerName: "Owner - Accept Recommendation?",
-      width: 180,
-      renderCell: (params) => (
-        <FormControlLabel
-          control={<Checkbox checked={params.value} onChange={() => {}} />}
-          label=""
-        />
-      ),
-    },
-    {
-      field: "SubcatOwnerJustification",
-      headerName: "Owner - Justification",
-      width: 250,
-      renderCell: (params) => (
-        <TextField
-          variant="standard"
-          fullWidth
-          defaultValue={params.value}
-          onChange={() => {}}
-        />
-      ),
-    },
-    {
-      field: "SubcatOwnerProfileType",
-      headerName: "Owner - Profile Type",
-      width: 200,
-      renderCell: (params) => (
-        <FormControl variant="standard" fullWidth>
-          <Select defaultValue={params.value} onChange={() => {}}>
-            <MenuItem value="Provider">Provider</MenuItem>
-            <MenuItem value="Consumer">Consumer</MenuItem>
-            <MenuItem value="Inheritor">Inheritor</MenuItem>
-            <MenuItem value="Both">Both</MenuItem>
-          </Select>
-        </FormControl>
-      ),
-    },
-  ];
+  // Memoized Expand/Collapse Toggle Function
+  const toggleRowExpansion = useCallback((subcatId) => {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [subcatId]: !prev[subcatId],
+    }));
+  }, []);
+
+  // Column Definitions (Memoized for Performance)
+  const columns = useMemo(
+    () => [
+      {
+        field: "subcategoryName",
+        headerName: "CSF 2 Subcategory",
+        width: 300,
+        renderCell: (params) => {
+          if (params.row.isGroup) {
+            return (
+              <div style={{ fontWeight: "bold", display: "flex", alignItems: "center" }}>
+                <IconButton size="small" onClick={() => toggleRowExpansion(params.row.id)}>
+                  {expandedRows[params.row.id] ? <ExpandMore /> : <ChevronRight />}
+                </IconButton>
+                {params.value}
+              </div>
+            );
+          }
+          return null;
+        },
+      },
+      {
+        field: "businessUnitName",
+        headerName: "Business Unit",
+        width: 200,
+        renderCell: (params) => (!params.row.isGroup ? params.value : null),
+      },
+
+      // Auditor Fields
+      {
+        field: "auditorIsInScope",
+        headerName: "Auditor - In Scope?",
+        width: 150,
+        renderCell: (params) =>
+          !params.row.isGroup ? <Checkbox checked={params.value} onChange={() => {}} /> : null,
+      },
+      { field: "auditorJustification", headerName: "Auditor - Justification", width: 250 },
+      {
+        field: "auditorProfileType",
+        headerName: "Auditor - Profile Type",
+        width: 200,
+        renderCell: (params) =>
+          !params.row.isGroup ? (
+            <FormControl variant="standard" fullWidth>
+              <Select defaultValue={params.value} onChange={() => {}}>
+                <MenuItem value="Provider">Provider</MenuItem>
+                <MenuItem value="Consumer">Consumer</MenuItem>
+                <MenuItem value="Inheritor">Inheritor</MenuItem>
+                <MenuItem value="Both">Both</MenuItem>
+              </Select>
+            </FormControl>
+          ) : null,
+      },
+
+      // Subcategory Owner Fields
+      {
+        field: "subcatOwnerAcceptRecommendation",
+        headerName: "Owner - Accept Recommendation?",
+        width: 180,
+        renderCell: (params) =>
+          !params.row.isGroup ? (
+            <FormControlLabel
+              control={<Checkbox checked={params.value} onChange={() => {}} />}
+              label=""
+            />
+          ) : null,
+      },
+      { field: "subcatOwnerJustification", headerName: "Owner - Justification", width: 250 },
+    ],
+    [expandedRows, toggleRowExpansion]
+  );
 
   return (
-    <div>
+    <div style={{ height: 600, width: "100%" }}>
       <h2>CSF Scope Data</h2>
       {loading ? (
         <p>Loading data...</p>
       ) : (
-        <TreeView
-          aria-label="CSF Scope Tree"
-          defaultCollapseIcon={<ExpandMore />}
-          defaultExpandIcon={<ChevronRight />}
-        >
-          {treeData.map((subcategory) => (
-            <TreeItem
-              key={subcategory.id}
-              nodeId={subcategory.id}
-              label={`${subcategory.SubcategoryName} - ${subcategory.SubcategoryDescription}`}
-            >
-              <div style={{ height: 250, width: "100%" }}>
-                <DataGrid
-                  rows={subcategory.businessUnits}
-                  columns={columns}
-                  getRowId={(row) => row.id}
-                  pageSize={5}
-                  disableSelectionOnClick
-                />
-              </div>
-            </TreeItem>
-          ))}
-        </TreeView>
+        <DataGrid
+          rows={tableData.filter(
+            (row) => row.isGroup || expandedRows[row.parentId] || row.parentId === undefined
+          )}
+          columns={columns}
+          getRowId={(row) => row.id}
+          pageSize={10}
+          disableSelectionOnClick
+        />
       )}
     </div>
   );
