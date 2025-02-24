@@ -42,15 +42,13 @@ const CSFScopeTable = () => {
     return () => (isMounted = false); // Prevent memory leaks
   }, []);
 
-  // Convert .NET Core's JSON keys (lowercase) to React-friendly camelCase
+  // Convert API response from .NET Core (lowercase keys) to React-compatible naming
   const normalizeApiData = useMemo(
     () => (data) =>
       data.map((item) => ({
         subcategoryId: item.subcategoryId,
         subcategoryName: item.subcategoryName,
-        subcategoryDescription: item.subcategoryDescription,
         relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
-        businessUnitName: item.businessUnitName,
         businessUnitAbbreviation: item.businessUnitAbbreviation,
         auditorIsInScope: item.auditorIsInScope,
         auditorJustification: item.auditorJustification,
@@ -70,24 +68,26 @@ const CSFScopeTable = () => {
     const normalizedData = normalizeApiData(data);
     const groupedData = [];
 
-    normalizedData.forEach((item) => {
-      const subcategoryRow = groupedData.find((row) => row.id === `subcat-${item.subcategoryId}`);
+    // Track subcategories already added
+    const subcategoryIdsAdded = new Set();
 
-      if (!subcategoryRow) {
+    normalizedData.forEach((item) => {
+      // Ensure each Subcategory is only added once as a parent row
+      if (!subcategoryIdsAdded.has(item.subcategoryId)) {
         groupedData.push({
           id: `subcat-${item.subcategoryId}`,
           subcategoryId: item.subcategoryId,
           subcategoryName: item.subcategoryName,
-          subcategoryDescription: item.subcategoryDescription,
           relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
           isGroup: true, // Flag for subcategory row
         });
+        subcategoryIdsAdded.add(item.subcategoryId);
       }
 
+      // Add Business Unit as a child row under its Subcategory
       groupedData.push({
         id: `bu-${item.subcategoryId}-${item.businessUnitAbbreviation}`,
         parentId: `subcat-${item.subcategoryId}`, // Links to parent
-        businessUnitName: item.businessUnitName,
         businessUnitAbbreviation: item.businessUnitAbbreviation,
         auditorIsInScope: item.auditorIsInScope,
         auditorJustification: item.auditorJustification,
@@ -134,7 +134,7 @@ const CSFScopeTable = () => {
         },
       },
       {
-        field: "businessUnitName",
+        field: "businessUnitAbbreviation",
         headerName: "Business Unit",
         width: 200,
         renderCell: (params) => (!params.row.isGroup ? params.value : null),
@@ -165,21 +165,6 @@ const CSFScopeTable = () => {
             </FormControl>
           ) : null,
       },
-
-      // Subcategory Owner Fields
-      {
-        field: "subcatOwnerAcceptRecommendation",
-        headerName: "Owner - Accept Recommendation?",
-        width: 180,
-        renderCell: (params) =>
-          !params.row.isGroup ? (
-            <FormControlLabel
-              control={<Checkbox checked={params.value} onChange={() => {}} />}
-              label=""
-            />
-          ) : null,
-      },
-      { field: "subcatOwnerJustification", headerName: "Owner - Justification", width: 250 },
     ],
     [expandedRows, toggleRowExpansion]
   );
@@ -191,9 +176,7 @@ const CSFScopeTable = () => {
         <p>Loading data...</p>
       ) : (
         <DataGrid
-          rows={tableData.filter(
-            (row) => row.isGroup || expandedRows[row.parentId] || row.parentId === undefined
-          )}
+          rows={tableData.filter((row) => row.isGroup || expandedRows[row.parentId])}
           columns={columns}
           getRowId={(row) => row.id}
           pageSize={10}
