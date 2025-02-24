@@ -1,13 +1,144 @@
-*.tar
-*.tar.*
-*.jar
-*.exe
-*.msi
-*.zip
-*.tgz
-*.log
-*.log.*
-*.sig
+import React, { useState, useEffect, useCallback } from "react";
+import { AgGridReact } from "ag-grid-react";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 
-pkg/
-src/
+const CSFScopeGrid = () => {
+    const [rowData, setRowData] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch data from API
+    useEffect(() => {
+        fetch("/api/v1/GetCSFScopeData")
+            .then((response) => response.json())
+            .then((data) => {
+                // Transform the API response into a tree structure for AG-Grid
+                const formattedData = transformDataForTreeView(data);
+                setRowData(formattedData);
+                setLoading(false);
+            })
+            .catch((error) => {
+                console.error("Error fetching data:", error);
+                setLoading(false);
+            });
+    }, []);
+
+    // Function to transform API response into a tree structure
+    const transformDataForTreeView = (data) => {
+        const groupedData = {};
+
+        data.forEach((item) => {
+            if (!groupedData[item.SubcategoryID]) {
+                groupedData[item.SubcategoryID] = {
+                    subcategoryRow: {
+                        SubcategoryID: item.SubcategoryID,
+                        SubcategoryName: item.SubcategoryName,
+                        SubcategoryDescription: item.SubcategoryDescription,
+                        RelatedCSF1_1Subcategories: item.RelatedCSF1_1Subcategories,
+                        treeLevel: 0, // Parent Level
+                    },
+                    businessUnits: [],
+                };
+            }
+
+            groupedData[item.SubcategoryID].businessUnits.push({
+                BusinessUnitName: item.BusinessUnitName,
+                BusinessUnitAbbreviation: item.BusinessUnitAbbreviation,
+                AuditorIsInScope: item.AuditorIsInScope,
+                AuditorJustification: item.AuditorJustification,
+                AuditorProfileType: item.AuditorProfileType,
+                AuditorConsumingFromBusinessUnit: item.AuditorConsumingFromBusinessUnit,
+                SubcatOwnerAcceptRecommendation: item.SubcatOwnerAcceptRecommendation,
+                SubcatOwnerIsInScope: item.SubcatOwnerIsInScope,
+                SubcatOwnerJustification: item.SubcatOwnerJustification,
+                SubcatOwnerProfileType: item.SubcatOwnerProfileType,
+                SubcatOwnerConsumingFromBusinessUnit: item.SubcatOwnerConsumingFromBusinessUnit,
+                treeLevel: 1, // Child Level
+                parentId: item.SubcategoryID, // Links to parent
+            });
+        });
+
+        // Flatten into a single array
+        return Object.values(groupedData).flatMap((group) => [
+            group.subcategoryRow,
+            ...group.businessUnits,
+        ]);
+    };
+
+    // Column Definitions
+    const columnDefs = [
+        {
+            headerName: "CSF 2 Subcategory",
+            field: "SubcategoryName",
+            rowGroup: true,
+            hide: true,
+            cellRenderer: (params) => {
+                if (params.data.treeLevel === 0) {
+                    return (
+                        <strong>{params.value}</strong>
+                    );
+                }
+                return params.value;
+            },
+        },
+        { headerName: "Business Unit", field: "BusinessUnitName", width: 200 },
+
+        // Auditor Fields
+        {
+            headerName: "Auditor - Is In Scope?",
+            field: "AuditorIsInScope",
+            editable: true,
+            cellRenderer: "agCheckboxCellRenderer",
+        },
+        { headerName: "Auditor - Justification", field: "AuditorJustification", editable: true },
+        {
+            headerName: "Auditor - Profile Type",
+            field: "AuditorProfileType",
+            editable: true,
+            cellEditor: "agSelectCellEditor",
+            cellEditorParams: { values: ["Provider", "Consumer", "Inheritor", "Both"] },
+        },
+        { headerName: "Auditor - Consuming From", field: "AuditorConsumingFromBusinessUnit", editable: true },
+
+        // Subcategory Owner Fields
+        {
+            headerName: "Owner - Accept Recommendation?",
+            field: "SubcatOwnerAcceptRecommendation",
+            editable: true,
+            cellRenderer: "agCheckboxCellRenderer",
+        },
+        {
+            headerName: "Owner - Is In Scope?",
+            field: "SubcatOwnerIsInScope",
+            editable: true,
+            cellRenderer: "agCheckboxCellRenderer",
+        },
+        { headerName: "Owner - Justification", field: "SubcatOwnerJustification", editable: true },
+        {
+            headerName: "Owner - Profile Type",
+            field: "SubcatOwnerProfileType",
+            editable: true,
+            cellEditor: "agSelectCellEditor",
+            cellEditorParams: { values: ["Provider", "Consumer", "Inheritor", "Both"] },
+        },
+        { headerName: "Owner - Consuming From", field: "SubcatOwnerConsumingFromBusinessUnit", editable: true },
+    ];
+
+    return (
+        <div className="ag-theme-alpine" style={{ height: "600px", width: "100%" }}>
+            {loading ? <p>Loading data...</p> : (
+                <AgGridReact
+                    rowData={rowData}
+                    columnDefs={columnDefs}
+                    treeData={true}
+                    getDataPath={(data) => data.treeLevel === 0 ? [data.SubcategoryName] : [data.SubcategoryName, data.BusinessUnitName]}
+                    autoGroupColumnDef={{ headerName: "CSF 2 Subcategory", field: "SubcategoryName", cellRenderer: "agGroupCellRenderer" }}
+                    pagination={true}
+                    paginationPageSize={20}
+                />
+            )}
+        </div>
+    );
+};
+
+export default CSFScopeGrid;
