@@ -1,78 +1,45 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
+import MaterialReactTable from "material-react-table";
 import {
   Card,
   CardContent,
   Typography,
-  Button,
-  Collapse,
-  Grid,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  TextField,
-  Switch,
-  FormControlLabel,
-  CircularProgress,
-  Alert,
-  IconButton,
   Checkbox,
   ListItemText,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
-import { ExpandMore, ExpandLess } from "@mui/icons-material";
 
 const ScopeManagement = () => {
   const [data, setData] = useState([]);
-  const [expandedSubcategory, setExpandedSubcategory] = useState({});
-  const [expandedBU, setExpandedBU] = useState({});
   const [selectedSubcategories, setSelectedSubcategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const textFieldRefs = useRef({});
-
-  // Fetch CSF Scope Data
-  const fetchCSFScopeData = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/api/scope");
-      setData(response.data);
-    } catch (err) {
-      console.error("Error fetching CSF scope data:", err);
-      setError("Failed to load data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchCSFScopeData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get("/api/scope");
+        setData(response.data);
+      } catch (err) {
+        console.error("Error fetching CSF scope data:", err);
+        setError("Failed to load data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchCSFScopeData();
   }, []);
 
-  const handleExpandSubcategory = useCallback((subcategoryId) => {
-    setExpandedSubcategory((prev) => ({
-      ...prev,
-      [subcategoryId]: !prev[subcategoryId],
-    }));
-  }, []);
-
-  const handleExpandBU = useCallback((buIndex) => {
-    setExpandedBU((prev) => ({
-      ...prev,
-      [buIndex]: !prev[buIndex],
-    }));
-  }, []);
-
-  const handleFieldChange = (index, field, value) => {
-    setData((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
-    );
-  };
-
+  // Multi-Select Subcategory Filter
   const handleFilterChange = (event) => {
-    const selectedValues = event.target.value;
-    setSelectedSubcategories(selectedValues.length === 0 ? [] : selectedValues);
+    setSelectedSubcategories(event.target.value.length === 0 ? [] : event.target.value);
   };
 
   const uniqueSubcategories = useMemo(
@@ -85,7 +52,7 @@ const ScopeManagement = () => {
 
   return (
     <div style={{ padding: "20px" }}>
-      {/* Multi-Select Filter */}
+      {/* Subcategory Filter */}
       <FormControl fullWidth margin="normal">
         <InputLabel>Select Subcategories</InputLabel>
         <Select
@@ -96,19 +63,17 @@ const ScopeManagement = () => {
         >
           {uniqueSubcategories.map((subcat) => (
             <MenuItem key={subcat} value={subcat}>
-              <Checkbox checked={selectedSubcategories.indexOf(subcat) > -1} />
+              <Checkbox checked={selectedSubcategories.includes(subcat)} />
               <ListItemText primary={subcat} />
             </MenuItem>
           ))}
         </Select>
       </FormControl>
 
-      {/* Group data by subcategory */}
+      {/* Render Subcategory Cards & Table */}
       {Object.entries(
         data.reduce((acc, item) => {
-          if (!acc[item.subcategoryId]) {
-            acc[item.subcategoryId] = [];
-          }
+          if (!acc[item.subcategoryId]) acc[item.subcategoryId] = [];
           acc[item.subcategoryId].push(item);
           return acc;
         }, {})
@@ -117,102 +82,114 @@ const ScopeManagement = () => {
           selectedSubcategories.length === 0 || selectedSubcategories.includes(items[0].subcategoryName)
         )
         .map(([subcategoryId, items]) => (
-          <Card key={subcategoryId} sx={{ marginBottom: 2 }}>
-            <CardContent>
-              <Typography variant="h6">{items[0].subcategoryName}</Typography>
-              <Typography variant="body2" color="textSecondary">
-                {items[0].subcategoryDescription}
-              </Typography>
-              <Typography variant="body2">
-                Related: {items[0].relatedCsf1_1Subcategories}
-              </Typography>
-              <Button onClick={() => handleExpandSubcategory(subcategoryId)} sx={{ marginTop: 1 }}>
-                {expandedSubcategory[subcategoryId] ? "Hide Details" : "Show Details"}
-              </Button>
-            </CardContent>
-            <Collapse in={expandedSubcategory[subcategoryId]}>
-              <CardContent>
-                <Grid container spacing={2}>
-                  {items.map((item, index) => (
-                    <Grid item xs={12} key={index}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Grid container alignItems="center" justifyContent="space-between">
-                            <Typography variant="subtitle1">
-                              {item.businessUnitAbbr} - {item.businessUnitOwner}
-                            </Typography>
-                            <IconButton onClick={() => handleExpandBU(index)}>
-                              {expandedBU[index] ? <ExpandLess /> : <ExpandMore />}
-                            </IconButton>
-                          </Grid>
-
-                          <Collapse in={expandedBU[index]}>
-                            {/* subcatOwnerAcceptRecommendation Toggle */}
-                            <FormControlLabel
-                              control={
-                                <Switch
-                                  checked={item.subcatOwnerAcceptRecommendation ?? true}
-                                  onChange={(e) =>
-                                    handleFieldChange(index, "subcatOwnerAcceptRecommendation", e.target.checked)
-                                  }
-                                />
-                              }
-                              label="Accept Recommendation?"
-                            />
-
-                            {/* Show Additional Fields Only If Recommendation is OFF */}
-                            {!item.subcatOwnerAcceptRecommendation && (
-                              <>
-                                <FormControlLabel
-                                  control={
-                                    <Switch
-                                      checked={item.subcatOwnerIsInScope || false}
-                                      onChange={(e) =>
-                                        handleFieldChange(index, "subcatOwnerIsInScope", e.target.checked)
-                                      }
-                                    />
-                                  }
-                                  label="Subcat Owner In Scope?"
-                                />
-
-                                {!item.subcatOwnerIsInScope && (
-                                  <TextField
-                                    fullWidth
-                                    margin="normal"
-                                    label="Justification"
-                                    inputRef={(el) => (textFieldRefs.current[index] = el)}
-                                    onChange={(e) =>
-                                      handleFieldChange(index, "subcatOwnerJustification", e.target.value)
-                                    }
-                                  />
-                                )}
-
-                                <FormControl fullWidth margin="normal">
-                                  <InputLabel>Profile Type</InputLabel>
-                                  <Select
-                                    value={item.subcatOwnerProfileType || ""}
-                                    onChange={(e) =>
-                                      handleFieldChange(index, "subcatOwnerProfileType", e.target.value)
-                                    }
-                                  >
-                                    <MenuItem value="Consumer">Consumer</MenuItem>
-                                    <MenuItem value="Both">Both</MenuItem>
-                                    <MenuItem value="Other">Other</MenuItem>
-                                  </Select>
-                                </FormControl>
-                              </>
-                            )}
-                          </Collapse>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              </CardContent>
-            </Collapse>
-          </Card>
+          <SubcategoryCard key={subcategoryId} subcategory={items[0]} businessUnits={items} />
         ))}
     </div>
+  );
+};
+
+// Component for Subcategory Card & Business Units Table
+const SubcategoryCard = ({ subcategory, businessUnits }) => {
+  const [tableData, setTableData] = useState(businessUnits);
+
+  const updateTableData = (rowIndex, columnId, value) => {
+    setTableData((prev) =>
+      prev.map((row, index) => (index === rowIndex ? { ...row, [columnId]: value } : row))
+    );
+  };
+
+  // Define Table Columns with Dynamic Column Rendering
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "businessUnitAbbr",
+        header: "Business Unit Abbr",
+      },
+      {
+        accessorKey: "businessUnitOwner",
+        header: "Business Unit Owner",
+        editComponent: ({ row, value, onChange }) => (
+          <Select
+            multiple
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            fullWidth
+          >
+            {["Owner 1", "Owner 2", "Owner 3"].map((owner) => (
+              <MenuItem key={owner} value={owner}>
+                {owner}
+              </MenuItem>
+            ))}
+          </Select>
+        ),
+      },
+      {
+        accessorKey: "auditorIsInScope",
+        header: "Auditor In Scope?",
+        editComponent: ({ row, value, onChange }) => (
+          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        ),
+      },
+      {
+        accessorKey: "auditorJustification",
+        header: "Auditor Justification",
+        enableEditing: (row) => row.original.auditorIsInScope === "No",
+      },
+      {
+        accessorKey: "auditorProfileType",
+        header: "Auditor Profile Type",
+        editComponent: ({ row, value, onChange }) => (
+          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
+            <MenuItem value="Contributor">Contributor</MenuItem>
+            <MenuItem value="Both">Both</MenuItem>
+            <MenuItem value="Other">Other</MenuItem>
+          </Select>
+        ),
+      },
+      {
+        accessorKey: "auditorConsumingFromBusinessUnit",
+        header: "Consuming From BU",
+        enableEditing: (row) =>
+          row.original.auditorProfileType === "Contributor" ||
+          row.original.auditorProfileType === "Both",
+        editComponent: ({ row, value, onChange }) => (
+          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
+            {["ABC", "UIO", "POA", "SKA-C"].map((bu) => (
+              <MenuItem key={bu} value={bu}>
+                {bu}
+              </MenuItem>
+            ))}
+          </Select>
+        ),
+      },
+      {
+        accessorKey: "subcatOwnerAcceptRecommendation",
+        header: "Owner Accept Recommendation?",
+        editComponent: ({ row, value, onChange }) => (
+          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        ),
+      },
+    ],
+    []
+  );
+
+  return (
+    <Card sx={{ marginBottom: 2 }}>
+      <CardContent>
+        <Typography variant="h6">{subcategory.subcategoryName}</Typography>
+        <Typography variant="body2">{subcategory.subcategoryDescription}</Typography>
+        <Typography variant="body2">
+          Related: {subcategory.relatedCsf1_1Subcategories}
+        </Typography>
+        <MaterialReactTable columns={columns} data={tableData} enableEditing onEditingRowSave={updateTableData} />
+      </CardContent>
+    </Card>
   );
 };
 
