@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 import {
   Card,
@@ -30,6 +30,8 @@ const ScopeManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const textFieldRefs = useRef({});
+
   // Fetch CSF Scope Data
   const fetchCSFScopeData = async () => {
     try {
@@ -48,19 +50,19 @@ const ScopeManagement = () => {
     fetchCSFScopeData();
   }, []);
 
-  const handleExpandSubcategory = (subcategoryId) => {
+  const handleExpandSubcategory = useCallback((subcategoryId) => {
     setExpandedSubcategory((prev) => ({
       ...prev,
       [subcategoryId]: !prev[subcategoryId],
     }));
-  };
+  }, []);
 
-  const handleExpandBU = (buIndex) => {
+  const handleExpandBU = useCallback((buIndex) => {
     setExpandedBU((prev) => ({
       ...prev,
       [buIndex]: !prev[buIndex],
     }));
-  };
+  }, []);
 
   const handleFieldChange = (index, field, value) => {
     setData((prev) =>
@@ -69,14 +71,17 @@ const ScopeManagement = () => {
   };
 
   const handleFilterChange = (event) => {
-    setSelectedSubcategories(event.target.value);
+    const selectedValues = event.target.value;
+    setSelectedSubcategories(selectedValues.length === 0 ? [] : selectedValues);
   };
+
+  const uniqueSubcategories = useMemo(
+    () => [...new Set(data.map((item) => item.subcategoryName))],
+    [data]
+  );
 
   if (loading) return <CircularProgress sx={{ display: "block", margin: "auto", mt: 4 }} />;
   if (error) return <Alert severity="error">{error}</Alert>;
-
-  // Extract unique subcategories for filter dropdown
-  const uniqueSubcategories = [...new Set(data.map((item) => item.subcategoryName))];
 
   return (
     <div style={{ padding: "20px" }}>
@@ -87,7 +92,7 @@ const ScopeManagement = () => {
           multiple
           value={selectedSubcategories}
           onChange={handleFilterChange}
-          renderValue={(selected) => selected.join(", ")}
+          renderValue={(selected) => (selected.length === 0 ? "All" : selected.join(", "))}
         >
           {uniqueSubcategories.map((subcat) => (
             <MenuItem key={subcat} value={subcat}>
@@ -142,56 +147,61 @@ const ScopeManagement = () => {
                           </Grid>
 
                           <Collapse in={expandedBU[index]}>
-                            {/* Auditor Fields */}
-                            <FormControl fullWidth margin="normal">
-                              <InputLabel>Custodian</InputLabel>
-                              <Select
-                                value={item.auditorSubcatCustodian || ""}
-                                onChange={(e) =>
-                                  handleFieldChange(index, "auditorSubcatCustodian", e.target.value)
-                                }
-                              >
-                                <MenuItem value="James Charles">James Charles</MenuItem>
-                              </Select>
-                            </FormControl>
-
+                            {/* subcatOwnerAcceptRecommendation Toggle */}
                             <FormControlLabel
                               control={
                                 <Switch
-                                  checked={item.auditorIsInScope || false}
+                                  checked={item.subcatOwnerAcceptRecommendation ?? true}
                                   onChange={(e) =>
-                                    handleFieldChange(index, "auditorIsInScope", e.target.checked)
+                                    handleFieldChange(index, "subcatOwnerAcceptRecommendation", e.target.checked)
                                   }
                                 />
                               }
-                              label="In Scope?"
+                              label="Accept Recommendation?"
                             />
 
-                            {!item.auditorIsInScope && (
-                              <TextField
-                                fullWidth
-                                margin="normal"
-                                label="Justification"
-                                value={item.auditorJustification || ""}
-                                onChange={(e) =>
-                                  handleFieldChange(index, "auditorJustification", e.target.value)
-                                }
-                              />
-                            )}
+                            {/* Show Additional Fields Only If Recommendation is OFF */}
+                            {!item.subcatOwnerAcceptRecommendation && (
+                              <>
+                                <FormControlLabel
+                                  control={
+                                    <Switch
+                                      checked={item.subcatOwnerIsInScope || false}
+                                      onChange={(e) =>
+                                        handleFieldChange(index, "subcatOwnerIsInScope", e.target.checked)
+                                      }
+                                    />
+                                  }
+                                  label="Subcat Owner In Scope?"
+                                />
 
-                            <FormControl fullWidth margin="normal">
-                              <InputLabel>Profile Type</InputLabel>
-                              <Select
-                                value={item.auditorProfileType || ""}
-                                onChange={(e) =>
-                                  handleFieldChange(index, "auditorProfileType", e.target.value)
-                                }
-                              >
-                                <MenuItem value="Consumer">Consumer</MenuItem>
-                                <MenuItem value="Both">Both</MenuItem>
-                                <MenuItem value="Other">Other</MenuItem>
-                              </Select>
-                            </FormControl>
+                                {!item.subcatOwnerIsInScope && (
+                                  <TextField
+                                    fullWidth
+                                    margin="normal"
+                                    label="Justification"
+                                    inputRef={(el) => (textFieldRefs.current[index] = el)}
+                                    onChange={(e) =>
+                                      handleFieldChange(index, "subcatOwnerJustification", e.target.value)
+                                    }
+                                  />
+                                )}
+
+                                <FormControl fullWidth margin="normal">
+                                  <InputLabel>Profile Type</InputLabel>
+                                  <Select
+                                    value={item.subcatOwnerProfileType || ""}
+                                    onChange={(e) =>
+                                      handleFieldChange(index, "subcatOwnerProfileType", e.target.value)
+                                    }
+                                  >
+                                    <MenuItem value="Consumer">Consumer</MenuItem>
+                                    <MenuItem value="Both">Both</MenuItem>
+                                    <MenuItem value="Other">Other</MenuItem>
+                                  </Select>
+                                </FormControl>
+                              </>
+                            )}
                           </Collapse>
                         </CardContent>
                       </Card>
