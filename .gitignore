@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { DataGrid } from "@mui/x-data-grid";
 import {
-  FormControl,
-  MenuItem,
-  Select,
-  Checkbox,
-  FormControlLabel,
-  TextField,
-  IconButton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Typography,
-  Box,
+  Checkbox,
+  TextField,
+  FormControl,
+  Select,
+  MenuItem,
+  IconButton,
 } from "@mui/material";
-import { ExpandMore, ChevronRight } from "@mui/icons-material";
+import { DataGrid } from "@mui/x-data-grid";
+import { ExpandMore } from "@mui/icons-material";
 
 // Secure API Fetch Function
 const fetchCSFScopeData = async () => {
@@ -28,170 +29,191 @@ const fetchCSFScopeData = async () => {
 };
 
 const CSFScopeTable = () => {
-  const [tableData, setTableData] = useState([]);
-  const [expandedRows, setExpandedRows] = useState({});
+  const [scopeData, setScopeData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedSubcategories, setExpandedSubcategories] = useState({});
 
   // Fetch data securely
   useEffect(() => {
     let isMounted = true;
     fetchCSFScopeData().then((data) => {
       if (isMounted) {
-        setTableData(formatTableData(data));
+        setScopeData(formatScopeData(data));
         setLoading(false);
       }
     });
     return () => (isMounted = false);
   }, []);
 
-  // Transform API response into hierarchical data
-  const formatTableData = useCallback((data) => {
-    const groupedData = [];
-    const subcategoryMap = new Map();
-
+  // Transform API response into grouped format
+  const formatScopeData = useCallback((data) => {
+    const groupedSubcategories = {};
     data.forEach((item) => {
-      if (!subcategoryMap.has(item.subcategoryId)) {
-        subcategoryMap.set(item.subcategoryId, {
+      if (!groupedSubcategories[item.subcategoryId]) {
+        groupedSubcategories[item.subcategoryId] = {
           id: `subcat-${item.subcategoryId}`,
-          subcategoryId: item.subcategoryId,
           subcategoryName: item.subcategoryName,
+          subcategoryDescription: item.subcategoryDescription,
           relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
-          isGroup: true,
-        });
+          businessUnits: [],
+        };
       }
-
-      groupedData.push({
-        id: `bu-${item.subcategoryId}-${item.businessUnitAbbreviation}`,
-        parentId: `subcat-${item.subcategoryId}`,
-        businessUnitAbbreviation: item.businessUnitAbbreviation,
-
-        // Auditor Fields
-        auditorIsInScope: item.auditorIsInScope,
-        auditorJustification: item.auditorJustification,
-        auditorProfileType: item.auditorProfileType,
-        auditorConsumingFromBusinessUnit: item.auditorConsumingFromBusinessUnit,
-
-        // Subcategory Owner Fields
-        subcatOwnerAcceptRecommendation: item.subcatOwnerAcceptRecommendation,
-        subcatOwnerIsInScope: item.subcatOwnerIsInScope,
-        subcatOwnerJustification: item.subcatOwnerJustification,
-        subcatOwnerProfileType: item.subcatOwnerProfileType,
-        subcatOwnerConsumingFromBusinessUnit: item.subcatOwnerConsumingFromBusinessUnit,
-      });
+      groupedSubcategories[item.subcategoryId].businessUnits.push(item);
     });
 
-    return [...subcategoryMap.values(), ...groupedData];
+    return Object.values(groupedSubcategories);
   }, []);
 
-  // Toggle row expansion
-  const toggleRowExpansion = useCallback((subcatId) => {
-    setExpandedRows((prev) => ({
+  // Toggle Accordion Expansion
+  const toggleAccordion = (subcategoryId) => {
+    setExpandedSubcategories((prev) => ({
       ...prev,
-      [subcatId]: !prev[subcatId],
+      [subcategoryId]: !prev[subcategoryId],
     }));
-  }, []);
+  };
 
-  // Column Definitions
-  const columns = useMemo(
-    () => [
-      {
-        field: "subcategoryName",
-        headerName: "CSF 2 Subcategory",
-        width: 300,
-        renderCell: (params) => {
-          if (params.row.isGroup) {
-            return (
-              <Box display="flex" alignItems="center">
-                <IconButton size="small" onClick={() => toggleRowExpansion(params.row.id)}>
-                  {expandedRows[params.row.id] ? <ExpandMore /> : <ChevronRight />}
-                </IconButton>
-                <Typography variant="body1" fontWeight="bold">
-                  {params.value}
-                </Typography>
-              </Box>
-            );
-          }
-          return null;
-        },
-      },
-      {
-        field: "businessUnitAbbreviation",
-        headerName: "Business Unit",
-        width: 200,
-        renderCell: (params) => (!params.row.isGroup ? params.value : null),
-      },
+  // Columns for Business Unit DataGrid
+  const getBusinessUnitColumns = (businessUnits) => [
+    { field: "businessUnitAbbreviation", headerName: "BU Abbr", width: 120 },
+    { field: "businessUnitOwner", headerName: "BU Owner", width: 180 },
 
-      // Auditor Fields
-      {
-        field: "auditorIsInScope",
-        headerName: "Auditor - In Scope?",
-        width: 150,
-        renderCell: (params) =>
-          !params.row.isGroup ? (
-            <Checkbox checked={!!params.value} onChange={() => {}} />
-          ) : null,
-      },
-      { field: "auditorJustification", headerName: "Auditor - Justification", width: 250 },
-      {
-        field: "auditorProfileType",
-        headerName: "Auditor - Profile Type",
-        width: 200,
-        renderCell: (params) =>
-          !params.row.isGroup ? (
-            <FormControl variant="standard" fullWidth>
-              <Select defaultValue={params.value} onChange={() => {}}>
-                <MenuItem value="Provider">Provider</MenuItem>
-                <MenuItem value="Consumer">Consumer</MenuItem>
-                <MenuItem value="Inheritor">Inheritor</MenuItem>
-                <MenuItem value="Both">Both</MenuItem>
-              </Select>
-            </FormControl>
-          ) : null,
-      },
+    // Auditor Fields
+    {
+      field: "auditorSubcatCustodian",
+      headerName: "Auditor Subcat Custodian",
+      width: 200,
+      renderCell: (params) => (
+        <TextField defaultValue={params.value} fullWidth variant="standard" />
+      ),
+    },
+    {
+      field: "auditorIsInScope",
+      headerName: "Auditor - In Scope?",
+      width: 150,
+      renderCell: (params) => (
+        <Checkbox checked={params.value} />
+      ),
+    },
+    {
+      field: "auditorJustification",
+      headerName: "Justification",
+      width: 250,
+      renderCell: (params) =>
+        params.row.auditorIsInScope === false ? (
+          <TextField defaultValue={params.value} fullWidth variant="standard" />
+        ) : null,
+    },
+    {
+      field: "auditorProfileType",
+      headerName: "Auditor Profile",
+      width: 200,
+      renderCell: (params) => (
+        <FormControl fullWidth>
+          <Select defaultValue={params.value} variant="standard">
+            <MenuItem value="Provider">Provider</MenuItem>
+            <MenuItem value="Consumer">Consumer</MenuItem>
+            <MenuItem value="Inheritor">Inheritor</MenuItem>
+            <MenuItem value="Both">Both</MenuItem>
+          </Select>
+        </FormControl>
+      ),
+    },
+    {
+      field: "auditorConsumingFromBusinessUnit",
+      headerName: "Consuming From",
+      width: 180,
+      renderCell: (params) =>
+        params.row.auditorProfileType === "Consumer" ||
+        params.row.auditorProfileType === "Both" ? (
+          <FormControl fullWidth>
+            <Select defaultValue={params.value} variant="standard">
+              {businessUnits.map((bu) => (
+                <MenuItem key={bu.businessUnitAbbreviation} value={bu.businessUnitAbbreviation}>
+                  {bu.businessUnitAbbreviation}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        ) : null,
+    },
 
-      // Subcategory Owner Fields (Only show if Accept Recommendation is No)
-      {
-        field: "subcatOwnerAcceptRecommendation",
-        headerName: "Owner - Accept Recommendation?",
-        width: 200,
-        renderCell: (params) =>
-          !params.row.isGroup ? (
-            <Checkbox
-              checked={!!params.value}
-              onChange={(e) => {
-                params.row.subcatOwnerAcceptRecommendation = e.target.checked;
-              }}
-            />
-          ) : null,
-      },
-      {
-        field: "subcatOwnerJustification",
-        headerName: "Owner - Justification",
-        width: 250,
-        renderCell: (params) =>
-          !params.row.isGroup && params.row.subcatOwnerAcceptRecommendation === false ? (
-            <TextField variant="standard" fullWidth defaultValue={params.value} onChange={() => {}} />
-          ) : null,
-      },
-    ],
-    [expandedRows, toggleRowExpansion]
-  );
+    // Subcategory Owner Fields (Shown only if Accept Recommendation = No)
+    {
+      field: "subcatOwnerAcceptRecommendation",
+      headerName: "Owner - Accept Recommendation?",
+      width: 180,
+      renderCell: (params) => (
+        <Checkbox checked={params.value} />
+      ),
+    },
+    {
+      field: "subcatOwnerIsInScope",
+      headerName: "Owner - In Scope?",
+      width: 150,
+      renderCell: (params) =>
+        params.row.subcatOwnerAcceptRecommendation === false ? (
+          <Checkbox checked={params.value} />
+        ) : null,
+    },
+    {
+      field: "subcatOwnerJustification",
+      headerName: "Owner Justification",
+      width: 250,
+      renderCell: (params) =>
+        params.row.subcatOwnerAcceptRecommendation === false &&
+        params.row.subcatOwnerIsInScope === false ? (
+          <TextField defaultValue={params.value} fullWidth variant="standard" />
+        ) : null,
+    },
+    {
+      field: "subcatOwnerProfileType",
+      headerName: "Owner Profile",
+      width: 200,
+      renderCell: (params) =>
+        params.row.subcatOwnerAcceptRecommendation === false ? (
+          <FormControl fullWidth>
+            <Select defaultValue={params.value} variant="standard">
+              <MenuItem value="Provider">Provider</MenuItem>
+              <MenuItem value="Consumer">Consumer</MenuItem>
+              <MenuItem value="Inheritor">Inheritor</MenuItem>
+              <MenuItem value="Both">Both</MenuItem>
+            </Select>
+          </FormControl>
+        ) : null,
+    },
+  ];
 
   return (
-    <div style={{ height: 600, width: "100%" }}>
+    <div>
       <Typography variant="h5" gutterBottom>
         CSF Scope Data
       </Typography>
       {loading ? (
-        <p>Loading data...</p>
+        <Typography>Loading data...</Typography>
       ) : (
-        <DataGrid
-          rows={tableData.filter((row) => row.isGroup || expandedRows[row.parentId])}
-          columns={columns}
-          getRowId={(row) => row.id}
-          pageSize={10}
-          disableSelectionOnClick
-        />
+        scopeData.map((subcategory) => (
+          <Accordion
+            key={subcategory.id}
+            expanded={expandedSubcategories[subcategory.id]}
+            onChange={() => toggleAccordion(subcategory.id)}
+          >
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography variant="h6">{subcategory.subcategoryName}</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography variant="body2">
+                {subcategory.subcategoryDescription}
+              </Typography>
+              <DataGrid
+                rows={subcategory.businessUnits}
+                columns={getBusinessUnitColumns(subcategory.businessUnits)}
+                pageSize={5}
+                autoHeight
+                disableSelectionOnClick
+              />
+            </AccordionDetails>
+          </Accordion>
+        ))
       )}
     </div>
   );
