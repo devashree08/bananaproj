@@ -14,52 +14,104 @@ import {
   TextField,
   Switch,
   FormControlLabel,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Checkbox,
+  ListItemText,
 } from "@mui/material";
+import { ExpandMore, ExpandLess } from "@mui/icons-material";
 
 const ScopeManagement = () => {
   const [data, setData] = useState([]);
-  const [expanded, setExpanded] = useState({});
+  const [expandedSubcategory, setExpandedSubcategory] = useState({});
+  const [expandedBU, setExpandedBU] = useState({});
+  const [selectedSubcategories, setSelectedSubcategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch CSF Scope Data
+  const fetchCSFScopeData = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get("/api/scope");
+      setData(response.data);
+    } catch (err) {
+      console.error("Error fetching CSF scope data:", err);
+      setError("Failed to load data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    axios
-      .get("/api/scope")
-      .then((response) => setData(response.data))
-      .catch((error) => console.error("Error fetching data:", error));
+    fetchCSFScopeData();
   }, []);
 
-  const handleExpandClick = (subcategoryId) => {
-    setExpanded((prev) => ({
+  const handleExpandSubcategory = (subcategoryId) => {
+    setExpandedSubcategory((prev) => ({
       ...prev,
       [subcategoryId]: !prev[subcategoryId],
     }));
   };
 
+  const handleExpandBU = (buIndex) => {
+    setExpandedBU((prev) => ({
+      ...prev,
+      [buIndex]: !prev[buIndex],
+    }));
+  };
+
   const handleFieldChange = (index, field, value) => {
     setData((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      )
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
   };
 
+  const handleFilterChange = (event) => {
+    setSelectedSubcategories(event.target.value);
+  };
+
+  if (loading) return <CircularProgress sx={{ display: "block", margin: "auto", mt: 4 }} />;
+  if (error) return <Alert severity="error">{error}</Alert>;
+
+  // Extract unique subcategories for filter dropdown
+  const uniqueSubcategories = [...new Set(data.map((item) => item.subcategoryName))];
+
   return (
     <div style={{ padding: "20px" }}>
-      {data.reduce((acc, item) => {
-        if (!acc[item.subcategoryId]) {
-          acc[item.subcategoryId] = [];
-        }
-        acc[item.subcategoryId].push(item);
-        return acc;
-      }, {}) &&
-        Object.entries(
-          data.reduce((acc, item) => {
-            if (!acc[item.subcategoryId]) {
-              acc[item.subcategoryId] = [];
-            }
-            acc[item.subcategoryId].push(item);
-            return acc;
-          }, {})
-        ).map(([subcategoryId, items]) => (
+      {/* Multi-Select Filter */}
+      <FormControl fullWidth margin="normal">
+        <InputLabel>Select Subcategories</InputLabel>
+        <Select
+          multiple
+          value={selectedSubcategories}
+          onChange={handleFilterChange}
+          renderValue={(selected) => selected.join(", ")}
+        >
+          {uniqueSubcategories.map((subcat) => (
+            <MenuItem key={subcat} value={subcat}>
+              <Checkbox checked={selectedSubcategories.indexOf(subcat) > -1} />
+              <ListItemText primary={subcat} />
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      {/* Group data by subcategory */}
+      {Object.entries(
+        data.reduce((acc, item) => {
+          if (!acc[item.subcategoryId]) {
+            acc[item.subcategoryId] = [];
+          }
+          acc[item.subcategoryId].push(item);
+          return acc;
+        }, {})
+      )
+        .filter(([_, items]) =>
+          selectedSubcategories.length === 0 || selectedSubcategories.includes(items[0].subcategoryName)
+        )
+        .map(([subcategoryId, items]) => (
           <Card key={subcategoryId} sx={{ marginBottom: 2 }}>
             <CardContent>
               <Typography variant="h6">{items[0].subcategoryName}</Typography>
@@ -69,186 +121,78 @@ const ScopeManagement = () => {
               <Typography variant="body2">
                 Related: {items[0].relatedCsf1_1Subcategories}
               </Typography>
-              <Button
-                onClick={() => handleExpandClick(subcategoryId)}
-                sx={{ marginTop: 1 }}
-              >
-                {expanded[subcategoryId] ? "Hide Details" : "Show Details"}
+              <Button onClick={() => handleExpandSubcategory(subcategoryId)} sx={{ marginTop: 1 }}>
+                {expandedSubcategory[subcategoryId] ? "Hide Details" : "Show Details"}
               </Button>
             </CardContent>
-            <Collapse in={expanded[subcategoryId]}>
+            <Collapse in={expandedSubcategory[subcategoryId]}>
               <CardContent>
                 <Grid container spacing={2}>
                   {items.map((item, index) => (
                     <Grid item xs={12} key={index}>
                       <Card variant="outlined">
                         <CardContent>
-                          <Typography variant="subtitle1">
-                            {item.businessUnitAbbr} - {item.businessUnitOwner}
-                          </Typography>
+                          <Grid container alignItems="center" justifyContent="space-between">
+                            <Typography variant="subtitle1">
+                              {item.businessUnitAbbr} - {item.businessUnitOwner}
+                            </Typography>
+                            <IconButton onClick={() => handleExpandBU(index)}>
+                              {expandedBU[index] ? <ExpandLess /> : <ExpandMore />}
+                            </IconButton>
+                          </Grid>
 
-                          {/* Auditor Fields */}
-                          <FormControl fullWidth margin="normal">
-                            <InputLabel>Custodian</InputLabel>
-                            <Select
-                              value={item.auditorSubcatCustodian || ""}
-                              onChange={(e) =>
-                                handleFieldChange(
-                                  index,
-                                  "auditorSubcatCustodian",
-                                  e.target.value
-                                )
-                              }
-                            >
-                              <MenuItem value="James Charles">
-                                James Charles
-                              </MenuItem>
-                            </Select>
-                          </FormControl>
-
-                          <FormControlLabel
-                            control={
-                              <Switch
-                                checked={item.auditorIsInScope || false}
-                                onChange={(e) =>
-                                  handleFieldChange(
-                                    index,
-                                    "auditorIsInScope",
-                                    e.target.checked
-                                  )
-                                }
-                              />
-                            }
-                            label="In Scope?"
-                          />
-
-                          {!item.auditorIsInScope && (
-                            <TextField
-                              fullWidth
-                              margin="normal"
-                              label="Justification"
-                              value={item.auditorJustification || ""}
-                              onChange={(e) =>
-                                handleFieldChange(
-                                  index,
-                                  "auditorJustification",
-                                  e.target.value
-                                )
-                              }
-                            />
-                          )}
-
-                          <FormControl fullWidth margin="normal">
-                            <InputLabel>Profile Type</InputLabel>
-                            <Select
-                              value={item.auditorProfileType || ""}
-                              onChange={(e) =>
-                                handleFieldChange(
-                                  index,
-                                  "auditorProfileType",
-                                  e.target.value
-                                )
-                              }
-                            >
-                              <MenuItem value="Consumer">Consumer</MenuItem>
-                              <MenuItem value="Both">Both</MenuItem>
-                              <MenuItem value="Other">Other</MenuItem>
-                            </Select>
-                          </FormControl>
-
-                          {(item.auditorProfileType === "Consumer" ||
-                            item.auditorProfileType === "Both") && (
+                          <Collapse in={expandedBU[index]}>
+                            {/* Auditor Fields */}
                             <FormControl fullWidth margin="normal">
-                              <InputLabel>Consuming From</InputLabel>
+                              <InputLabel>Custodian</InputLabel>
                               <Select
-                                value={item.auditorConsumingFromBusinessUnit || ""}
+                                value={item.auditorSubcatCustodian || ""}
                                 onChange={(e) =>
-                                  handleFieldChange(
-                                    index,
-                                    "auditorConsumingFromBusinessUnit",
-                                    e.target.value
-                                  )
+                                  handleFieldChange(index, "auditorSubcatCustodian", e.target.value)
                                 }
                               >
-                                {items.map((bu) => (
-                                  <MenuItem key={bu.businessUnitAbbr} value={bu.businessUnitAbbr}>
-                                    {bu.businessUnitAbbr}
-                                  </MenuItem>
-                                ))}
+                                <MenuItem value="James Charles">James Charles</MenuItem>
                               </Select>
                             </FormControl>
-                          )}
 
-                          {/* Subcategory Owner Fields */}
-                          <FormControlLabel
-                            control={
-                              <Switch
-                                checked={item.subcatOwnerAcceptRecommendation || false}
-                                onChange={(e) =>
-                                  handleFieldChange(
-                                    index,
-                                    "subcatOwnerAcceptRecommendation",
-                                    e.target.checked
-                                  )
-                                }
-                              />
-                            }
-                            label="Accept Recommendation?"
-                          />
-
-                          {!item.subcatOwnerAcceptRecommendation && (
-                            <>
-                              <FormControlLabel
-                                control={
-                                  <Switch
-                                    checked={item.subcatOwnerIsInScope || false}
-                                    onChange={(e) =>
-                                      handleFieldChange(
-                                        index,
-                                        "subcatOwnerIsInScope",
-                                        e.target.checked
-                                      )
-                                    }
-                                  />
-                                }
-                                label="Subcat Owner In Scope?"
-                              />
-
-                              {!item.subcatOwnerIsInScope && (
-                                <TextField
-                                  fullWidth
-                                  margin="normal"
-                                  label="Justification"
-                                  value={item.subcatOwnerJustification || ""}
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={item.auditorIsInScope || false}
                                   onChange={(e) =>
-                                    handleFieldChange(
-                                      index,
-                                      "subcatOwnerJustification",
-                                      e.target.value
-                                    )
+                                    handleFieldChange(index, "auditorIsInScope", e.target.checked)
                                   }
                                 />
-                              )}
+                              }
+                              label="In Scope?"
+                            />
 
-                              <FormControl fullWidth margin="normal">
-                                <InputLabel>Profile Type</InputLabel>
-                                <Select
-                                  value={item.subcatOwnerProfileType || ""}
-                                  onChange={(e) =>
-                                    handleFieldChange(
-                                      index,
-                                      "subcatOwnerProfileType",
-                                      e.target.value
-                                    )
-                                  }
-                                >
-                                  <MenuItem value="Consumer">Consumer</MenuItem>
-                                  <MenuItem value="Both">Both</MenuItem>
-                                  <MenuItem value="Other">Other</MenuItem>
-                                </Select>
-                              </FormControl>
-                            </>
-                          )}
+                            {!item.auditorIsInScope && (
+                              <TextField
+                                fullWidth
+                                margin="normal"
+                                label="Justification"
+                                value={item.auditorJustification || ""}
+                                onChange={(e) =>
+                                  handleFieldChange(index, "auditorJustification", e.target.value)
+                                }
+                              />
+                            )}
+
+                            <FormControl fullWidth margin="normal">
+                              <InputLabel>Profile Type</InputLabel>
+                              <Select
+                                value={item.auditorProfileType || ""}
+                                onChange={(e) =>
+                                  handleFieldChange(index, "auditorProfileType", e.target.value)
+                                }
+                              >
+                                <MenuItem value="Consumer">Consumer</MenuItem>
+                                <MenuItem value="Both">Both</MenuItem>
+                                <MenuItem value="Other">Other</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Collapse>
                         </CardContent>
                       </Card>
                     </Grid>
