@@ -3,19 +3,17 @@ import axios from "axios";
 import {
   Accordion,
   AccordionSummary,
-  AccordionDetails,
   Typography,
-  Checkbox,
-  TextField,
   FormControl,
   Select,
   MenuItem,
-  IconButton,
+  Grid,
+  TextField,
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
 import { ExpandMore } from "@mui/icons-material";
+import { DataGrid } from "@mui/x-data-grid";
 
-// Secure API Fetch Function
+// ✅ Fetch Data via Axios (Fast & Secure)
 const fetchCSFScopeData = async () => {
   try {
     const response = await axios.get("/api/v1/GetCSFScopeData", {
@@ -30,10 +28,9 @@ const fetchCSFScopeData = async () => {
 
 const CSFScopeTable = () => {
   const [scopeData, setScopeData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [expandedSubcategories, setExpandedSubcategories] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  // Fetch data securely
   useEffect(() => {
     let isMounted = true;
     fetchCSFScopeData().then((data) => {
@@ -45,26 +42,30 @@ const CSFScopeTable = () => {
     return () => (isMounted = false);
   }, []);
 
-  // Transform API response into grouped format
+  // ✅ Transform API response into grouped format for rendering
   const formatScopeData = useCallback((data) => {
     const groupedSubcategories = {};
     data.forEach((item) => {
       if (!groupedSubcategories[item.subcategoryId]) {
         groupedSubcategories[item.subcategoryId] = {
           id: `subcat-${item.subcategoryId}`,
+          subcategoryId: item.subcategoryId,
           subcategoryName: item.subcategoryName,
           subcategoryDescription: item.subcategoryDescription,
-          relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
+          businessUnitOwner: item.businessUnitOwner,
           businessUnits: [],
         };
       }
-      groupedSubcategories[item.subcategoryId].businessUnits.push(item);
+      groupedSubcategories[item.subcategoryId].businessUnits.push({
+        ...item,
+        id: `${item.subcategoryId}-${item.businessUnitAbbreviation}`,
+      });
     });
 
     return Object.values(groupedSubcategories);
   }, []);
 
-  // Toggle Accordion Expansion
+  // ✅ Toggle Accordion Expansion
   const toggleAccordion = (subcategoryId) => {
     setExpandedSubcategories((prev) => ({
       ...prev,
@@ -72,26 +73,25 @@ const CSFScopeTable = () => {
     }));
   };
 
-  // Columns for Business Unit DataGrid
+  // ✅ Columns for Business Unit DataGrid
   const getBusinessUnitColumns = (businessUnits) => [
     { field: "businessUnitAbbreviation", headerName: "BU Abbr", width: 120 },
-    { field: "businessUnitOwner", headerName: "BU Owner", width: 180 },
-
-    // Auditor Fields
-    {
-      field: "auditorSubcatCustodian",
-      headerName: "Auditor Subcat Custodian",
-      width: 200,
-      renderCell: (params) => (
-        <TextField defaultValue={params.value} fullWidth variant="standard" />
-      ),
-    },
+    { field: "auditorSubcatCustodian", headerName: "Auditor Custodian", width: 200 },
     {
       field: "auditorIsInScope",
       headerName: "Auditor - In Scope?",
       width: 150,
       renderCell: (params) => (
-        <Checkbox checked={params.value} />
+        <FormControl fullWidth>
+          <Select
+            value={params.value || ""}
+            onChange={(e) => (params.row.auditorIsInScope = e.target.value)}
+            variant="standard"
+          >
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        </FormControl>
       ),
     },
     {
@@ -99,7 +99,7 @@ const CSFScopeTable = () => {
       headerName: "Justification",
       width: 250,
       renderCell: (params) =>
-        params.row.auditorIsInScope === false ? (
+        params.row.auditorIsInScope === "No" ? (
           <TextField defaultValue={params.value} fullWidth variant="standard" />
         ) : null,
     },
@@ -109,7 +109,11 @@ const CSFScopeTable = () => {
       width: 200,
       renderCell: (params) => (
         <FormControl fullWidth>
-          <Select defaultValue={params.value} variant="standard">
+          <Select
+            value={params.value || ""}
+            onChange={(e) => (params.row.auditorProfileType = e.target.value)}
+            variant="standard"
+          >
             <MenuItem value="Provider">Provider</MenuItem>
             <MenuItem value="Consumer">Consumer</MenuItem>
             <MenuItem value="Inheritor">Inheritor</MenuItem>
@@ -136,49 +140,30 @@ const CSFScopeTable = () => {
           </FormControl>
         ) : null,
     },
-
-    // Subcategory Owner Fields (Shown only if Accept Recommendation = No)
     {
       field: "subcatOwnerAcceptRecommendation",
       headerName: "Owner - Accept Recommendation?",
       width: 180,
       renderCell: (params) => (
-        <Checkbox checked={params.value} />
+        <FormControl fullWidth>
+          <Select
+            value={params.value || ""}
+            onChange={(e) => (params.row.subcatOwnerAcceptRecommendation = e.target.value)}
+            variant="standard"
+          >
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        </FormControl>
       ),
-    },
-    {
-      field: "subcatOwnerIsInScope",
-      headerName: "Owner - In Scope?",
-      width: 150,
-      renderCell: (params) =>
-        params.row.subcatOwnerAcceptRecommendation === false ? (
-          <Checkbox checked={params.value} />
-        ) : null,
     },
     {
       field: "subcatOwnerJustification",
       headerName: "Owner Justification",
       width: 250,
       renderCell: (params) =>
-        params.row.subcatOwnerAcceptRecommendation === false &&
-        params.row.subcatOwnerIsInScope === false ? (
+        params.row.subcatOwnerAcceptRecommendation === "No" ? (
           <TextField defaultValue={params.value} fullWidth variant="standard" />
-        ) : null,
-    },
-    {
-      field: "subcatOwnerProfileType",
-      headerName: "Owner Profile",
-      width: 200,
-      renderCell: (params) =>
-        params.row.subcatOwnerAcceptRecommendation === false ? (
-          <FormControl fullWidth>
-            <Select defaultValue={params.value} variant="standard">
-              <MenuItem value="Provider">Provider</MenuItem>
-              <MenuItem value="Consumer">Consumer</MenuItem>
-              <MenuItem value="Inheritor">Inheritor</MenuItem>
-              <MenuItem value="Both">Both</MenuItem>
-            </Select>
-          </FormControl>
         ) : null,
     },
   ];
@@ -198,20 +183,25 @@ const CSFScopeTable = () => {
             onChange={() => toggleAccordion(subcategory.id)}
           >
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography variant="h6">{subcategory.subcategoryName}</Typography>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={3}>
+                  <Typography variant="h6">{subcategory.subcategoryName}</Typography>
+                </Grid>
+                <Grid item xs={5}>
+                  <Typography variant="body2">{subcategory.subcategoryDescription}</Typography>
+                </Grid>
+                <Grid item xs={4}>
+                  <Typography variant="body2"><b>Owner:</b> {subcategory.businessUnitOwner}</Typography>
+                </Grid>
+              </Grid>
             </AccordionSummary>
-            <AccordionDetails>
-              <Typography variant="body2">
-                {subcategory.subcategoryDescription}
-              </Typography>
-              <DataGrid
-                rows={subcategory.businessUnits}
-                columns={getBusinessUnitColumns(subcategory.businessUnits)}
-                pageSize={5}
-                autoHeight
-                disableSelectionOnClick
-              />
-            </AccordionDetails>
+            <DataGrid
+              rows={subcategory.businessUnits}
+              columns={getBusinessUnitColumns(subcategory.businessUnits)}
+              pageSize={5}
+              autoHeight
+              disableSelectionOnClick
+            />
           </Accordion>
         ))
       )}
