@@ -2,22 +2,18 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import MaterialReactTable from "material-react-table";
 import {
-  Card,
-  CardContent,
-  Typography,
-  FormControl,
-  InputLabel,
   Select,
   MenuItem,
   Checkbox,
   ListItemText,
+  Typography,
   CircularProgress,
   Alert,
 } from "@mui/material";
+import { BarChart } from "@mui/x-charts/BarChart"; // Using MRT's Chart Panel
 
 const ScopeManagement = () => {
   const [data, setData] = useState([]);
-  const [selectedSubcategories, setSelectedSubcategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -37,70 +33,35 @@ const ScopeManagement = () => {
     fetchCSFScopeData();
   }, []);
 
-  // Multi-Select Subcategory Filter
-  const handleFilterChange = (event) => {
-    setSelectedSubcategories(event.target.value.length === 0 ? [] : event.target.value);
-  };
+  // Test Data for Dropdowns (ONLY for Business Unit Owner & Auditor Custodian)
+  const businessUnitOwners = ["Owner 1", "Owner 2", "Owner 3"];
+  const auditors = ["Auditor A", "Auditor B", "Auditor C"];
 
-  const uniqueSubcategories = useMemo(
-    () => [...new Set(data.map((item) => item.subcategoryName))],
-    [data]
-  );
+  // These values will still come from API
+  const profileTypes = ["Provider", "Contributor", "Both", "Inheritor"];
+  const businessUnits = ["ABC", "UIO", "POA", "SKA-C"];
 
-  if (loading) return <CircularProgress sx={{ display: "block", margin: "auto", mt: 4 }} />;
-  if (error) return <Alert severity="error">{error}</Alert>;
-
-  return (
-    <div style={{ padding: "20px" }}>
-      {/* Subcategory Filter */}
-      <FormControl fullWidth margin="normal">
-        <InputLabel>Select Subcategories</InputLabel>
-        <Select
-          multiple
-          value={selectedSubcategories}
-          onChange={handleFilterChange}
-          renderValue={(selected) => (selected.length === 0 ? "All" : selected.join(", "))}
-        >
-          {uniqueSubcategories.map((subcat) => (
-            <MenuItem key={subcat} value={subcat}>
-              <Checkbox checked={selectedSubcategories.includes(subcat)} />
-              <ListItemText primary={subcat} />
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      {/* Render Subcategory Cards & Table */}
-      {Object.entries(
-        data.reduce((acc, item) => {
-          if (!acc[item.subcategoryId]) acc[item.subcategoryId] = [];
-          acc[item.subcategoryId].push(item);
-          return acc;
-        }, {})
-      )
-        .filter(([_, items]) =>
-          selectedSubcategories.length === 0 || selectedSubcategories.includes(items[0].subcategoryName)
-        )
-        .map(([subcategoryId, items]) => (
-          <SubcategoryCard key={subcategoryId} subcategory={items[0]} businessUnits={items} />
-        ))}
-    </div>
-  );
-};
-
-// Component for Subcategory Card & Business Units Table
-const SubcategoryCard = ({ subcategory, businessUnits }) => {
-  const [tableData, setTableData] = useState(businessUnits);
-
-  const updateTableData = (rowIndex, columnId, value) => {
-    setTableData((prev) =>
-      prev.map((row, index) => (index === rowIndex ? { ...row, [columnId]: value } : row))
-    );
-  };
-
-  // Define Table Columns with Dynamic Column Rendering
+  // Define Table Columns with Dynamic Behaviors
   const columns = useMemo(
     () => [
+      // Grouping Columns (Subcategory Level)
+      {
+        accessorKey: "subcategoryName",
+        header: "Subcategory Name",
+        enableGrouping: true,
+      },
+      {
+        accessorKey: "subcategoryDescription",
+        header: "Description",
+        enableGrouping: true,
+      },
+      {
+        accessorKey: "relatedCsf1_1Subcategories",
+        header: "Related CSF 1.1",
+        enableGrouping: true,
+      },
+
+      // Business Unit Columns
       {
         accessorKey: "businessUnitAbbr",
         header: "Business Unit Abbr",
@@ -108,16 +69,38 @@ const SubcategoryCard = ({ subcategory, businessUnits }) => {
       {
         accessorKey: "businessUnitOwner",
         header: "Business Unit Owner",
-        editComponent: ({ row, value, onChange }) => (
+        enableEditing: true,
+        editComponent: ({ cell, row }) => (
           <Select
             multiple
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
+            value={cell.getValue() || []}
+            onChange={(e) => row.updateData("businessUnitOwner", e.target.value)}
             fullWidth
           >
-            {["Owner 1", "Owner 2", "Owner 3"].map((owner) => (
+            {businessUnitOwners.map((owner) => (
               <MenuItem key={owner} value={owner}>
                 {owner}
+              </MenuItem>
+            ))}
+          </Select>
+        ),
+      },
+
+      // Auditor Fields
+      {
+        accessorKey: "auditorSubcatCustodian",
+        header: "Auditor Custodian",
+        enableEditing: true,
+        editComponent: ({ cell, row }) => (
+          <Select
+            multiple
+            value={cell.getValue() || []}
+            onChange={(e) => row.updateData("auditorSubcatCustodian", e.target.value)}
+            fullWidth
+          >
+            {auditors.map((auditor) => (
+              <MenuItem key={auditor} value={auditor}>
+                {auditor}
               </MenuItem>
             ))}
           </Select>
@@ -126,38 +109,77 @@ const SubcategoryCard = ({ subcategory, businessUnits }) => {
       {
         accessorKey: "auditorIsInScope",
         header: "Auditor In Scope?",
-        editComponent: ({ row, value, onChange }) => (
-          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
+        enableEditing: true,
+        editComponent: ({ cell, row }) => (
+          <Select
+            value={cell.getValue() || ""}
+            onChange={(e) => row.updateData("auditorIsInScope", e.target.value)}
+            fullWidth
+          >
             <MenuItem value="Yes">Yes</MenuItem>
             <MenuItem value="No">No</MenuItem>
           </Select>
         ),
       },
+
+      // Conditional Justification Column
       {
         accessorKey: "auditorJustification",
         header: "Auditor Justification",
         enableEditing: (row) => row.original.auditorIsInScope === "No",
       },
+
+      // Maturity Level Projection
       {
-        accessorKey: "auditorProfileType",
-        header: "Auditor Profile Type",
-        editComponent: ({ row, value, onChange }) => (
-          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
-            <MenuItem value="Contributor">Contributor</MenuItem>
-            <MenuItem value="Both">Both</MenuItem>
-            <MenuItem value="Other">Other</MenuItem>
+        accessorKey: "maturityLevelProjection",
+        header: "Maturity Level",
+        enableEditing: true,
+        editComponent: ({ cell, row }) => (
+          <Select
+            value={cell.getValue() || ""}
+            onChange={(e) => row.updateData("maturityLevelProjection", e.target.value)}
+            fullWidth
+          >
+            <MenuItem value="Increase">Increase</MenuItem>
+            <MenuItem value="Decrease">Decrease</MenuItem>
+            <MenuItem value="Maintains">Maintains</MenuItem>
           </Select>
         ),
       },
+
+      // Profile Type
+      {
+        accessorKey: "auditorProfileType",
+        header: "Profile Type",
+        enableEditing: true,
+        editComponent: ({ cell, row }) => (
+          <Select
+            value={cell.getValue() || ""}
+            onChange={(e) => row.updateData("auditorProfileType", e.target.value)}
+            fullWidth
+          >
+            {profileTypes.map((profile) => (
+              <MenuItem key={profile} value={profile}>
+                {profile}
+              </MenuItem>
+            ))}
+          </Select>
+        ),
+      },
+
+      // Conditional Consuming Business Unit Column
       {
         accessorKey: "auditorConsumingFromBusinessUnit",
         header: "Consuming From BU",
         enableEditing: (row) =>
-          row.original.auditorProfileType === "Contributor" ||
-          row.original.auditorProfileType === "Both",
-        editComponent: ({ row, value, onChange }) => (
-          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
-            {["ABC", "UIO", "POA", "SKA-C"].map((bu) => (
+          row.original.auditorProfileType === "Contributor" || row.original.auditorProfileType === "Both",
+        editComponent: ({ cell, row }) => (
+          <Select
+            value={cell.getValue() || ""}
+            onChange={(e) => row.updateData("auditorConsumingFromBusinessUnit", e.target.value)}
+            fullWidth
+          >
+            {businessUnits.map((bu) => (
               <MenuItem key={bu} value={bu}>
                 {bu}
               </MenuItem>
@@ -165,11 +187,18 @@ const SubcategoryCard = ({ subcategory, businessUnits }) => {
           </Select>
         ),
       },
+
+      // Owner Accept Recommendation
       {
         accessorKey: "subcatOwnerAcceptRecommendation",
         header: "Owner Accept Recommendation?",
-        editComponent: ({ row, value, onChange }) => (
-          <Select value={value} onChange={(e) => onChange(e.target.value)} fullWidth>
+        enableEditing: true,
+        editComponent: ({ cell, row }) => (
+          <Select
+            value={cell.getValue() || ""}
+            onChange={(e) => row.updateData("subcatOwnerAcceptRecommendation", e.target.value)}
+            fullWidth
+          >
             <MenuItem value="Yes">Yes</MenuItem>
             <MenuItem value="No">No</MenuItem>
           </Select>
@@ -180,16 +209,34 @@ const SubcategoryCard = ({ subcategory, businessUnits }) => {
   );
 
   return (
-    <Card sx={{ marginBottom: 2 }}>
-      <CardContent>
-        <Typography variant="h6">{subcategory.subcategoryName}</Typography>
-        <Typography variant="body2">{subcategory.subcategoryDescription}</Typography>
-        <Typography variant="body2">
-          Related: {subcategory.relatedCsf1_1Subcategories}
-        </Typography>
-        <MaterialReactTable columns={columns} data={tableData} enableEditing onEditingRowSave={updateTableData} />
-      </CardContent>
-    </Card>
+    <div style={{ padding: "20px" }}>
+      {loading ? (
+        <CircularProgress sx={{ display: "block", margin: "auto", mt: 4 }} />
+      ) : error ? (
+        <Alert severity="error">{error}</Alert>
+      ) : (
+        <MaterialReactTable
+          columns={columns}
+          data={data}
+          enableGrouping
+          enableEditing
+          enableRowExpanding
+          renderDetailPanel={({ row }) => <BUChartDetailPanel row={row} />}
+        />
+      )}
+    </div>
+  );
+};
+
+// 📊 MRT Chart Detail Panel
+const BUChartDetailPanel = ({ row }) => {
+  return (
+    <BarChart
+      xAxis={[{ scaleType: "band", data: ["Increase", "Decrease", "Maintains"] }]}
+      series={[{ data: [30, 40, 20] }]} // Dummy data for the chart
+      width={500}
+      height={300}
+    />
   );
 };
 
