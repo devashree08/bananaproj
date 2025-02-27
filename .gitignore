@@ -7,9 +7,8 @@ import {
   Typography,
   CircularProgress,
   Alert,
-  TextField,
 } from "@mui/material";
-import TextareaAutosize from "@mui/material/TextareaAutosize"; // Auto-Expanding Text Field
+import TextareaAutosize from "@mui/material/TextareaAutosize";
 import InfoIcon from "@mui/icons-material/Info";
 
 const ScopeManagement = () => {
@@ -41,30 +40,49 @@ const ScopeManagement = () => {
   const profileTypes = ["Provider", "Contributor", "Both", "Inheritor"];
   const businessUnits = ["ABC", "UIO", "POA", "SKA-C"];
 
-  // Define Table Columns with Proper Select & Multi-Select Fields
+  // Group data by Subcategory → Business Units
+  const groupedData = useMemo(() => {
+    const subcategoryMap = {};
+
+    data.forEach((item) => {
+      if (!subcategoryMap[item.subcategoryName]) {
+        subcategoryMap[item.subcategoryName] = {
+          ...item,
+          businessUnits: [],
+        };
+      }
+      subcategoryMap[item.subcategoryName].businessUnits.push(item);
+    });
+
+    return Object.values(subcategoryMap);
+  }, [data]);
+
   const columns = useMemo(
     () => [
-      // Level 1: Grouping Columns (Subcategory Level)
       {
         accessorKey: "subcategoryName",
         header: "Subcategory Name",
-        enableGrouping: true,
+        enableGrouping: false,
       },
       {
         accessorKey: "subcategoryDescription",
         header: "Description",
-        enableGrouping: true,
+        enableGrouping: false,
       },
       {
         accessorKey: "relatedCsf1_1Subcategories",
         header: "Related CSF 1.1",
-        enableGrouping: true,
+        enableGrouping: false,
       },
+    ],
+    []
+  );
 
-      // Level 2: Business Unit Level (Inline Editable)
+  const businessUnitColumns = useMemo(
+    () => [
       {
         accessorKey: "businessUnitAbbr",
-        header: "Business Unit Abbr",
+        header: "Business Unit",
       },
       {
         accessorKey: "businessUnitOwner",
@@ -85,7 +103,6 @@ const ScopeManagement = () => {
           </Select>
         ),
       },
-
       {
         accessorKey: "auditorSubcatCustodian",
         header: "Auditor Custodian",
@@ -105,7 +122,6 @@ const ScopeManagement = () => {
           </Select>
         ),
       },
-
       {
         accessorKey: "auditorIsInScope",
         header: "Auditor In Scope?",
@@ -121,8 +137,6 @@ const ScopeManagement = () => {
           </Select>
         ),
       },
-
-      // Conditional Justification Column (Auto-Expanding Text Field)
       {
         accessorKey: "auditorJustification",
         header: "Auditor Justification",
@@ -134,63 +148,6 @@ const ScopeManagement = () => {
             value={cell.getValue() || ""}
             onChange={(e) => row.updateData("auditorJustification", e.target.value)}
           />
-        ),
-      },
-
-      {
-        accessorKey: "maturityLevelProjection",
-        header: "Maturity Level",
-        enableEditing: true,
-        editComponent: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ""}
-            onChange={(e) => row.updateData("maturityLevelProjection", e.target.value)}
-            fullWidth
-          >
-            <MenuItem value="Increase">Increase</MenuItem>
-            <MenuItem value="Decrease">Decrease</MenuItem>
-            <MenuItem value="Maintains">Maintains</MenuItem>
-          </Select>
-        ),
-      },
-
-      {
-        accessorKey: "auditorProfileType",
-        header: "Profile Type",
-        enableEditing: true,
-        editComponent: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ""}
-            onChange={(e) => row.updateData("auditorProfileType", e.target.value)}
-            fullWidth
-          >
-            {profileTypes.map((profile) => (
-              <MenuItem key={profile} value={profile}>
-                {profile}
-              </MenuItem>
-            ))}
-          </Select>
-        ),
-      },
-
-      // Conditional Consuming Business Unit Column
-      {
-        accessorKey: "auditorConsumingFromBusinessUnit",
-        header: "Consuming From BU",
-        enableEditing: (row) =>
-          row.original.auditorProfileType === "Contributor" || row.original.auditorProfileType === "Both",
-        editComponent: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ""}
-            onChange={(e) => row.updateData("auditorConsumingFromBusinessUnit", e.target.value)}
-            fullWidth
-          >
-            {businessUnits.map((bu) => (
-              <MenuItem key={bu} value={bu}>
-                {bu}
-              </MenuItem>
-            ))}
-          </Select>
         ),
       },
     ],
@@ -206,12 +163,21 @@ const ScopeManagement = () => {
       ) : (
         <MaterialReactTable
           columns={columns}
-          data={data}
+          data={groupedData}
           enableGrouping
           enableEditing
-          editMode="table" // ✅ Inline Editing (No Modals!)
-          enableRowExpanding
-          renderDetailPanel={({ row }) => <ProfileTypeDefinition />}
+          editDisplayMode="cell"
+          enableExpanding
+          renderDetailPanel={({ row }) => (
+            <MaterialReactTable
+              columns={businessUnitColumns}
+              data={row.original.businessUnits}
+              enableEditing
+              editDisplayMode="cell"
+              enableExpanding
+              renderDetailPanel={({ row }) => <ProfileTypeDefinition />}
+            />
+          )}
         />
       )}
     </div>
