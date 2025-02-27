@@ -6,23 +6,24 @@ import {
   CircularProgress,
   Alert,
   Box,
-  Select,
-  MenuItem,
+  TextField,
+  Autocomplete,
   Chip,
 } from "@mui/material";
 import InfoIcon from "@mui/icons-material/Info";
-import TextareaAutosize from "@mui/material/TextareaAutosize";
 
 const ScopeManagement = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [users, setUsers] = useState([]); // Holds Business Unit Owners & Auditor Names
 
+  // ✅ Fetch main API `/api/scope` (UNCHANGED)
   useEffect(() => {
     const fetchCSFScopeData = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("/api/scope");
+        const response = await axios.get("/api/scope"); // ✅ Keep this API
         setData(response.data);
       } catch (err) {
         console.error("Error fetching CSF scope data:", err);
@@ -34,30 +35,33 @@ const ScopeManagement = () => {
     fetchCSFScopeData();
   }, []);
 
-  // Test Data (ONLY for Business Unit Owner & Auditor Custodian)
-  const businessUnitOwners = ["Owner 1", "Owner 2", "Owner 3"];
-  const auditors = ["Auditor A", "Auditor B", "Auditor C"];
-
-  // API Data Values
-  const profileTypes = ["Provider", "Contributor", "Both", "Inheritor"];
-  const businessUnits = ["ABC", "UIO", "POA", "SKA-C"];
-
-  // Group data by Subcategory → Business Units
-  const groupedData = useMemo(() => {
-    const subcategoryMap = {};
-
-    data.forEach((item) => {
-      if (!subcategoryMap[item.subcategoryName]) {
-        subcategoryMap[item.subcategoryName] = {
-          ...item,
-          businessUnits: [],
-        };
+  // ✅ Fetch Business Unit Owners & Auditor Names Separately (Simulated API)
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        // Simulating API Fetch for Users
+        const userResponse = await new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                data: [
+                  { id: 1, name: "John Doe" },
+                  { id: 2, name: "Jane Smith" },
+                  { id: 3, name: "Robert Johnson" },
+                  { id: 4, name: "Emily Davis" },
+                  { id: 5, name: "Michael Brown" },
+                ],
+              }),
+            1000
+          )
+        );
+        setUsers(userResponse.data);
+      } catch (error) {
+        console.error("Error fetching user data:", error);
       }
-      subcategoryMap[item.subcategoryName].businessUnits.push(item);
-    });
-
-    return Object.values(subcategoryMap);
-  }, [data]);
+    };
+    fetchUserData();
+  }, []);
 
   const columns = useMemo(
     () => [
@@ -91,10 +95,12 @@ const ScopeManagement = () => {
         header: "Business Unit Owner",
         enableEditing: true,
         editComponent: ({ cell, row }) => (
-          <MultiSelectDropdown
+          <SearchableMultiSelect
             value={cell.getValue() || []}
-            options={businessUnitOwners}
-            onChange={(newValue) => row.updateData("businessUnitOwner", newValue)}
+            onChange={(newValue) =>
+              row.updateData("businessUnitOwner", newValue)
+            }
+            options={users} // ✅ Pass API Data for Dynamic Searching
           />
         ),
       },
@@ -103,34 +109,17 @@ const ScopeManagement = () => {
         header: "Auditor Custodian",
         enableEditing: true,
         editComponent: ({ cell, row }) => (
-          <MultiSelectDropdown
+          <SearchableMultiSelect
             value={cell.getValue() || []}
-            options={auditors}
-            onChange={(newValue) => row.updateData("auditorSubcatCustodian", newValue)}
-          />
-        ),
-      },
-      {
-        accessorKey: "auditorIsInScope",
-        header: "Auditor In Scope?",
-        editVariant: "select",
-        editSelectOptions: ["Yes", "No"],
-      },
-      {
-        accessorKey: "auditorJustification",
-        header: "Auditor Justification",
-        enableEditing: (row) => row.original.auditorIsInScope === "No",
-        editComponent: ({ cell, row }) => (
-          <TextareaAutosize
-            minRows={2}
-            style={{ width: "100%", fontSize: "14px", resize: "none", overflow: "hidden" }}
-            value={cell.getValue() || ""}
-            onChange={(e) => row.updateData("auditorJustification", e.target.value)}
+            onChange={(newValue) =>
+              row.updateData("auditorSubcatCustodian", newValue)
+            }
+            options={users} // ✅ Pass API Data for Dynamic Searching
           />
         ),
       },
     ],
-    []
+    [users]
   );
 
   return (
@@ -142,7 +131,7 @@ const ScopeManagement = () => {
       ) : (
         <MaterialReactTable
           columns={columns}
-          data={groupedData}
+          data={data}
           enableGrouping
           enableEditing={false} // ✅ Subcategory Level is Non-Editable
           enableExpanding
@@ -186,28 +175,31 @@ const ScopeManagement = () => {
   );
 };
 
-// 📖 Multi-Select Component (Correctly Implemented)
-const MultiSelectDropdown = ({ value, options, onChange }) => {
+// ✅ Searchable Multi-Select Component (NOW ACTUALLY USED IN MRT)
+const SearchableMultiSelect = ({ value, onChange, options }) => {
   return (
-    <Select
+    <Autocomplete
       multiple
+      options={options}
+      getOptionLabel={(option) => option.name}
+      filterSelectedOptions
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      renderValue={(selected) => (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-          {selected.map((val) => (
-            <Chip key={val} label={val} />
-          ))}
-        </Box>
-      )}
-      fullWidth
-    >
-      {options.map((option) => (
-        <MenuItem key={option} value={option}>
-          {option}
-        </MenuItem>
-      ))}
-    </Select>
+      onChange={(event, newValue) => {
+        if (newValue.length <= 4) {
+          onChange(newValue);
+        }
+      }}
+      renderInput={(params) => <TextField {...params} label="Search Users" />}
+      renderTags={(selected, getTagProps) =>
+        selected.map((option, index) => (
+          <Chip
+            key={option.id}
+            label={option.name}
+            {...getTagProps({ index })}
+          />
+        ))
+      }
+    />
   );
 };
 
