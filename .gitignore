@@ -4,13 +4,11 @@ import MaterialReactTable from "material-react-table";
 import {
   Select,
   MenuItem,
-  Checkbox,
-  ListItemText,
   Typography,
   CircularProgress,
   Alert,
 } from "@mui/material";
-import { BarChart } from "@mui/x-charts/BarChart"; // Using MRT's Chart Panel
+import InfoIcon from "@mui/icons-material/Info";
 
 const ScopeManagement = () => {
   const [data, setData] = useState([]);
@@ -33,11 +31,11 @@ const ScopeManagement = () => {
     fetchCSFScopeData();
   }, []);
 
-  // Test Data for Dropdowns (ONLY for Business Unit Owner & Auditor Custodian)
+  // Test Data (Only for Business Unit Owner & Auditor Custodian)
   const businessUnitOwners = ["Owner 1", "Owner 2", "Owner 3"];
   const auditors = ["Auditor A", "Auditor B", "Auditor C"];
 
-  // These values will still come from API
+  // API Data Values
   const profileTypes = ["Provider", "Contributor", "Both", "Inheritor"];
   const businessUnits = ["ABC", "UIO", "POA", "SKA-C"];
 
@@ -61,7 +59,7 @@ const ScopeManagement = () => {
         enableGrouping: true,
       },
 
-      // Business Unit Columns
+      // Business Unit Level (Inline Editable)
       {
         accessorKey: "businessUnitAbbr",
         header: "Business Unit Abbr",
@@ -86,7 +84,6 @@ const ScopeManagement = () => {
         ),
       },
 
-      // Auditor Fields
       {
         accessorKey: "auditorSubcatCustodian",
         header: "Auditor Custodian",
@@ -106,6 +103,7 @@ const ScopeManagement = () => {
           </Select>
         ),
       },
+
       {
         accessorKey: "auditorIsInScope",
         header: "Auditor In Scope?",
@@ -122,14 +120,13 @@ const ScopeManagement = () => {
         ),
       },
 
-      // Conditional Justification Column
+      // Conditional Justification Column (Shown only if IsInScope = No)
       {
         accessorKey: "auditorJustification",
         header: "Auditor Justification",
         enableEditing: (row) => row.original.auditorIsInScope === "No",
       },
 
-      // Maturity Level Projection
       {
         accessorKey: "maturityLevelProjection",
         header: "Maturity Level",
@@ -147,7 +144,6 @@ const ScopeManagement = () => {
         ),
       },
 
-      // Profile Type
       {
         accessorKey: "auditorProfileType",
         header: "Profile Type",
@@ -188,7 +184,6 @@ const ScopeManagement = () => {
         ),
       },
 
-      // Owner Accept Recommendation
       {
         accessorKey: "subcatOwnerAcceptRecommendation",
         header: "Owner Accept Recommendation?",
@@ -221,22 +216,25 @@ const ScopeManagement = () => {
           enableGrouping
           enableEditing
           enableRowExpanding
-          renderDetailPanel={({ row }) => <BUChartDetailPanel row={row} />}
+          renderDetailPanel={({ row }) => <ProfileTypeDefinition />}
         />
       )}
     </div>
   );
 };
 
-// 📊 MRT Chart Detail Panel
-const BUChartDetailPanel = ({ row }) => {
+// 📖 Detail Panel with Profile Type Definitions
+const ProfileTypeDefinition = () => {
   return (
-    <BarChart
-      xAxis={[{ scaleType: "band", data: ["Increase", "Decrease", "Maintains"] }]}
-      series={[{ data: [30, 40, 20] }]} // Dummy data for the chart
-      width={500}
-      height={300}
-    />
+    <div style={{ padding: "16px" }}>
+      <Typography variant="h6">
+        <InfoIcon fontSize="small" /> Profile Type Definitions
+      </Typography>
+      <Typography>🟢 <b>Provider:</b> Provides data to other units.</Typography>
+      <Typography>🟡 <b>Contributor:</b> Contributes to shared initiatives.</Typography>
+      <Typography>🔵 <b>Both:</b> Acts as both Provider and Contributor.</Typography>
+      <Typography>🔴 <b>Inheritor:</b> Receives data but does not contribute.</Typography>
+    </div>
   );
 };
 
