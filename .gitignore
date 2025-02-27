@@ -2,14 +2,16 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import MaterialReactTable from "material-react-table";
 import {
-  Select,
-  MenuItem,
   Typography,
   CircularProgress,
   Alert,
+  Box,
+  Select,
+  MenuItem,
+  Chip,
 } from "@mui/material";
-import TextareaAutosize from "@mui/material/TextareaAutosize";
 import InfoIcon from "@mui/icons-material/Info";
+import TextareaAutosize from "@mui/material/TextareaAutosize";
 
 const ScopeManagement = () => {
   const [data, setData] = useState([]);
@@ -89,18 +91,11 @@ const ScopeManagement = () => {
         header: "Business Unit Owner",
         enableEditing: true,
         editComponent: ({ cell, row }) => (
-          <Select
-            multiple
+          <MultiSelectDropdown
             value={cell.getValue() || []}
-            onChange={(e) => row.updateData("businessUnitOwner", e.target.value)}
-            fullWidth
-          >
-            {businessUnitOwners.map((owner) => (
-              <MenuItem key={owner} value={owner}>
-                {owner}
-              </MenuItem>
-            ))}
-          </Select>
+            options={businessUnitOwners}
+            onChange={(newValue) => row.updateData("businessUnitOwner", newValue)}
+          />
         ),
       },
       {
@@ -108,34 +103,18 @@ const ScopeManagement = () => {
         header: "Auditor Custodian",
         enableEditing: true,
         editComponent: ({ cell, row }) => (
-          <Select
-            multiple
+          <MultiSelectDropdown
             value={cell.getValue() || []}
-            onChange={(e) => row.updateData("auditorSubcatCustodian", e.target.value)}
-            fullWidth
-          >
-            {auditors.map((auditor) => (
-              <MenuItem key={auditor} value={auditor}>
-                {auditor}
-              </MenuItem>
-            ))}
-          </Select>
+            options={auditors}
+            onChange={(newValue) => row.updateData("auditorSubcatCustodian", newValue)}
+          />
         ),
       },
       {
         accessorKey: "auditorIsInScope",
         header: "Auditor In Scope?",
-        enableEditing: true,
-        editComponent: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ""}
-            onChange={(e) => row.updateData("auditorIsInScope", e.target.value)}
-            fullWidth
-          >
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </Select>
-        ),
+        editVariant: "select",
+        editSelectOptions: ["Yes", "No"],
       },
       {
         accessorKey: "auditorJustification",
@@ -144,7 +123,7 @@ const ScopeManagement = () => {
         editComponent: ({ cell, row }) => (
           <TextareaAutosize
             minRows={2}
-            style={{ width: "100%", fontSize: "14px" }}
+            style={{ width: "100%", fontSize: "14px", resize: "none", overflow: "hidden" }}
             value={cell.getValue() || ""}
             onChange={(e) => row.updateData("auditorJustification", e.target.value)}
           />
@@ -155,7 +134,7 @@ const ScopeManagement = () => {
   );
 
   return (
-    <div style={{ padding: "20px" }}>
+    <Box sx={{ padding: "20px" }}>
       {loading ? (
         <CircularProgress sx={{ display: "block", margin: "auto", mt: 4 }} />
       ) : error ? (
@@ -165,29 +144,77 @@ const ScopeManagement = () => {
           columns={columns}
           data={groupedData}
           enableGrouping
-          enableEditing
-          editDisplayMode="cell"
+          enableEditing={false} // ✅ Subcategory Level is Non-Editable
           enableExpanding
+          muiTableContainerProps={{ sx: { maxHeight: "600px", overflow: "auto" } }} // Sticky Headers
+          muiTableHeadCellProps={{
+            sx: {
+              position: "sticky",
+              top: 0,
+              backgroundColor: "#f5f5f5",
+              zIndex: 2,
+            },
+          }}
           renderDetailPanel={({ row }) => (
             <MaterialReactTable
               columns={businessUnitColumns}
               data={row.original.businessUnits}
               enableEditing
-              editDisplayMode="cell"
+              editDisplayMode="row" // ✅ Business Unit Level uses Row Editing
               enableExpanding
               renderDetailPanel={({ row }) => <ProfileTypeDefinition />}
+              muiTableContainerProps={{ sx: { maxHeight: "400px", overflow: "auto" } }}
+              muiTableHeadCellProps={{
+                sx: {
+                  position: "sticky",
+                  top: 0,
+                  backgroundColor: "#fafafa",
+                  zIndex: 2,
+                },
+              }}
+              enableColumnActions={false} // Remove unwanted column actions
+              muiTableBodyRowProps={{
+                sx: {
+                  '&:nth-of-type(odd)': { backgroundColor: "#f9f9f9" },
+                },
+              }}
             />
           )}
         />
       )}
-    </div>
+    </Box>
+  );
+};
+
+// 📖 Multi-Select Component (Correctly Implemented)
+const MultiSelectDropdown = ({ value, options, onChange }) => {
+  return (
+    <Select
+      multiple
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      renderValue={(selected) => (
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+          {selected.map((val) => (
+            <Chip key={val} label={val} />
+          ))}
+        </Box>
+      )}
+      fullWidth
+    >
+      {options.map((option) => (
+        <MenuItem key={option} value={option}>
+          {option}
+        </MenuItem>
+      ))}
+    </Select>
   );
 };
 
 // 📖 Detail Panel with Profile Type Definitions
 const ProfileTypeDefinition = () => {
   return (
-    <div style={{ padding: "16px" }}>
+    <Box sx={{ padding: "16px" }}>
       <Typography variant="h6">
         <InfoIcon fontSize="small" /> Profile Type Definitions
       </Typography>
@@ -195,7 +222,7 @@ const ProfileTypeDefinition = () => {
       <Typography>Contributor: Contributes to shared initiatives.</Typography>
       <Typography>Both: Acts as both Provider and Contributor.</Typography>
       <Typography>Inheritor: Receives data but does not contribute.</Typography>
-    </div>
+    </Box>
   );
 };
 
