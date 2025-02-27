@@ -16,15 +16,30 @@ const ScopeManagement = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [users, setUsers] = useState([]); // Holds Business Unit Owners & Auditor Names
+  const [users, setUsers] = useState([]); // Holds Business Unit Owners & Auditors
 
-  // ✅ Fetch main API `/api/scope` (UNCHANGED)
+  // ✅ Fetch main API `/api/scope`
   useEffect(() => {
     const fetchCSFScopeData = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("/api/scope"); // ✅ Keep this API
-        setData(response.data);
+        const response = await axios.get("/api/scope");
+
+        // ✅ Ensure that API Data stays unchanged but handles null/empty fields correctly
+        const sanitizedData = response.data.map((subcategory) => ({
+          ...subcategory,
+          businessUnits: subcategory.businessUnits.map((bu) => ({
+            ...bu,
+            businessUnitOwner: bu.businessUnitOwner && Array.isArray(bu.businessUnitOwner)
+              ? bu.businessUnitOwner
+              : [], // ✅ Convert `null` or empty string to []
+            auditorSubcatCustodian: bu.auditorSubcatCustodian && Array.isArray(bu.auditorSubcatCustodian)
+              ? bu.auditorSubcatCustodian
+              : [], // ✅ Convert `null` or empty string to []
+          })),
+        }));
+
+        setData(sanitizedData);
       } catch (err) {
         console.error("Error fetching CSF scope data:", err);
         setError("Failed to load data. Please try again.");
@@ -35,11 +50,11 @@ const ScopeManagement = () => {
     fetchCSFScopeData();
   }, []);
 
-  // ✅ Fetch Business Unit Owners & Auditor Names Separately (Simulated API)
+  // ✅ Fetch Business Unit Owners & Auditor Names Separately
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        // Simulating API Fetch for Users
+        // Simulated API Fetch for Users
         const userResponse = await new Promise((resolve) =>
           setTimeout(
             () =>
@@ -65,58 +80,49 @@ const ScopeManagement = () => {
 
   const columns = useMemo(
     () => [
-      {
-        accessorKey: "subcategoryName",
-        header: "Subcategory Name",
-        enableGrouping: false,
-      },
-      {
-        accessorKey: "subcategoryDescription",
-        header: "Description",
-        enableGrouping: false,
-      },
-      {
-        accessorKey: "relatedCsf1_1Subcategories",
-        header: "Related CSF 1.1",
-        enableGrouping: false,
-      },
+      { accessorKey: "subcategoryName", header: "Subcategory Name" },
+      { accessorKey: "subcategoryDescription", header: "Description" },
+      { accessorKey: "relatedCsf1_1Subcategories", header: "Related CSF 1.1" },
     ],
     []
   );
 
   const businessUnitColumns = useMemo(
     () => [
-      {
-        accessorKey: "businessUnitAbbr",
-        header: "Business Unit",
-      },
+      { accessorKey: "businessUnitAbbr", header: "Business Unit" },
       {
         accessorKey: "businessUnitOwner",
         header: "Business Unit Owner",
         enableEditing: true,
-        editComponent: ({ cell, row }) => (
-          <SearchableMultiSelect
-            value={cell.getValue() || []}
-            onChange={(newValue) =>
-              row.updateData("businessUnitOwner", newValue)
-            }
-            options={users} // ✅ Pass API Data for Dynamic Searching
-          />
-        ),
+        editComponent: ({ cell, row }) => {
+          const value = cell.getValue();
+          console.log("DEBUG: BusinessUnitOwner Value ->", value);
+
+          return (
+            <SearchableMultiSelect
+              value={Array.isArray(value) ? value : []} // ✅ Fix: Always Array
+              onChange={(newValue) => row.updateData("businessUnitOwner", newValue)}
+              options={users}
+            />
+          );
+        },
       },
       {
         accessorKey: "auditorSubcatCustodian",
         header: "Auditor Custodian",
         enableEditing: true,
-        editComponent: ({ cell, row }) => (
-          <SearchableMultiSelect
-            value={cell.getValue() || []}
-            onChange={(newValue) =>
-              row.updateData("auditorSubcatCustodian", newValue)
-            }
-            options={users} // ✅ Pass API Data for Dynamic Searching
-          />
-        ),
+        editComponent: ({ cell, row }) => {
+          const value = cell.getValue();
+          console.log("DEBUG: AuditorSubcatCustodian Value ->", value);
+
+          return (
+            <SearchableMultiSelect
+              value={Array.isArray(value) ? value : []} // ✅ Fix: Always Array
+              onChange={(newValue) => row.updateData("auditorSubcatCustodian", newValue)}
+              options={users}
+            />
+          );
+        },
       },
     ],
     [users]
@@ -133,40 +139,16 @@ const ScopeManagement = () => {
           columns={columns}
           data={data}
           enableGrouping
-          enableEditing={false} // ✅ Subcategory Level is Non-Editable
+          enableEditing={false}
           enableExpanding
-          muiTableContainerProps={{ sx: { maxHeight: "600px", overflow: "auto" } }} // Sticky Headers
-          muiTableHeadCellProps={{
-            sx: {
-              position: "sticky",
-              top: 0,
-              backgroundColor: "#f5f5f5",
-              zIndex: 2,
-            },
-          }}
           renderDetailPanel={({ row }) => (
             <MaterialReactTable
               columns={businessUnitColumns}
               data={row.original.businessUnits}
               enableEditing
-              editDisplayMode="row" // ✅ Business Unit Level uses Row Editing
+              editDisplayMode="row"
               enableExpanding
               renderDetailPanel={({ row }) => <ProfileTypeDefinition />}
-              muiTableContainerProps={{ sx: { maxHeight: "400px", overflow: "auto" } }}
-              muiTableHeadCellProps={{
-                sx: {
-                  position: "sticky",
-                  top: 0,
-                  backgroundColor: "#fafafa",
-                  zIndex: 2,
-                },
-              }}
-              enableColumnActions={false} // Remove unwanted column actions
-              muiTableBodyRowProps={{
-                sx: {
-                  '&:nth-of-type(odd)': { backgroundColor: "#f9f9f9" },
-                },
-              }}
             />
           )}
         />
@@ -175,15 +157,17 @@ const ScopeManagement = () => {
   );
 };
 
-// ✅ Searchable Multi-Select Component (NOW ACTUALLY USED IN MRT)
+// ✅ Searchable Multi-Select Component (Handles All Cases Correctly)
 const SearchableMultiSelect = ({ value, onChange, options }) => {
+  console.log("DEBUG: SearchableMultiSelect Value ->", value);
+
   return (
     <Autocomplete
       multiple
       options={options}
       getOptionLabel={(option) => option.name}
       filterSelectedOptions
-      value={value}
+      value={Array.isArray(value) ? value : []} // ✅ FIXED: Prevents Undefined `.length` Error
       onChange={(event, newValue) => {
         if (newValue.length <= 4) {
           onChange(newValue);
