@@ -1,64 +1,42 @@
--- Create stored procedure for BlackduckData refresh
-CREATE PROCEDURE Refresh_BlackduckData
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    DECLARE @TODAYS_DT SMALLDATETIME;
-    DECLARE @TODAYS_REPORT_MONTH_DT SMALLDATETIME;
-    
-    SET @TODAYS_DT = CAST(CONVERT(VARCHAR(10), GETDATE(), 101) AS SMALLDATETIME);
-    SET @TODAYS_REPORT_MONTH_DT = DATEADD(dd, 1 - DAY(@TODAYS_DT), @TODAYS_DT);
-    SET @TODAYS_REPORT_MONTH_DT = CAST(CONVERT(VARCHAR(10), @TODAYS_REPORT_MONTH_DT, 101) AS SMALLDATETIME);
-    
-    BEGIN TRANSACTION;
-    
-    -- Temporary table for the day's data
-    CREATE TABLE #TempBlackduckData (
-        ReportMonth DATE,
-        AppID INT,
-        BU VARCHAR(255),
-        T2_Manager VARCHAR(255),
-        T3_Manager VARCHAR(255),
-        T1_Manager VARCHAR(255),
-        Total_Blackduck INT,
-        Overdue_Blackduck INT,
-        CountApps INT,
-        LastUpdateDate DATETIME DEFAULT GETDATE()
-    );
-    
-    -- Insert data into temporary table
-    INSERT INTO #TempBlackduckData (ReportMonth, AppID, BU, T2_Manager, T3_Manager, T1_Manager, Total_Blackduck, Overdue_Blackduck, CountApps, LastUpdateDate)
-    SELECT 
-        @TODAYS_REPORT_MONTH_DT AS ReportMonth, 
-        a.AppID, 
-        b.BU, 
-        b.T2_Manager, 
-        b.T3_Manager, 
-        b.T1_Manager,
-        COUNT(DISTINCT c.CVE_ID) AS Total_Blackduck,
-        SUM(CASE WHEN d.OverDueHigh = 1 OR d.OverDueCritical = 1 THEN 1 ELSE 0 END) AS Overdue_Blackduck,
-        COUNT(DISTINCT a.AppID) AS CountApps,
-        GETDATE() AS LastUpdateDate
-    FROM AllApps a
-    JOIN BlackduckDailySummary d ON a.AppID = d.AppID
-    JOIN CVESummaryTable c ON d.CVE_ID = c.CVE_ID
-    JOIN BU_Mapping b ON a.T3_Manager = b.T3_Manager
-        AND a.T2_Manager = b.T2_Manager
-        AND a.T1_Manager = b.T1_Manager
-    WHERE a.RiskLevel = 'Level 1'
-      AND c.Severity IN ('High', 'Critical')
-    GROUP BY a.AppID, b.BU, b.T2_Manager, b.T3_Manager, b.T1_Manager;
-    
-    -- Delete existing data for the current month to avoid duplicates
-    DELETE FROM BlackduckData WHERE ReportMonth = @TODAYS_REPORT_MONTH_DT;
-    
-    -- Insert new data from temp table
-    INSERT INTO BlackduckData (ReportMonth, AppID, BU, T2_Manager, T3_Manager, T1_Manager, Total_Blackduck, Overdue_Blackduck, CountApps, LastUpdateDate)
-    SELECT * FROM #TempBlackduckData;
-    
-    -- Drop temp table
-    DROP TABLE #TempBlackduckData;
-    
-    COMMIT TRANSACTION;
-END;
+SELECT 
+    CAST(DATEADD(DAY, 1 - DAY(GETDATE()), GETDATE()) AS DATE) AS ReportMonth, -- First day of the current month
+    a.AppID,
+    b.BU,
+    a.T1_Manager,
+    a.T2_Manager,
+    a.T3_Manager,
+    COUNT(DISTINCT CASE WHEN ads.CVE_ID IN (SELECT VulnID FROM CVESummaryTable) 
+        OR ads.CVE_ID = '' 
+        OR (ads.VulnerabilityName LIKE '%amazon%' OR ads.VulnerabilityName LIKE '%open%' OR 
+            ads.VulnerabilityName LIKE '%apache%' OR ads.VulnerabilityName LIKE '%debian%' OR 
+            ads.VulnerabilityName LIKE '%node%' OR ads.VulnerabilityName LIKE '%smb%' OR 
+            ads.VulnerabilityName LIKE '%rocky%' OR ads.VulnerabilityName LIKE '%ubuntu%' OR 
+            ads.VulnerabilityName LIKE '%curl%' OR ads.VulnerabilityName LIKE '%azule%' OR 
+            ads.VulnerabilityName LIKE '%centos%' OR ads.VulnerabilityName LIKE '%jboss%' OR 
+            ads.VulnerabilityName LIKE '%php%' OR ads.VulnerabilityName LIKE '%python%' OR 
+            ads.VulnerabilityName LIKE '%puppet%' OR ads.VulnerabilityName LIKE '%ssh%' OR 
+            ads.VulnerabilityName LIKE '%ssl%' OR ads.VulnerabilityName LIKE '%tls%') 
+        THEN ads.CVE_ID END) AS Total_TenableAgent,
+    COUNT(DISTINCT CASE WHEN (ads.AgeDays > 90) AND 
+        (ads.CVE_ID IN (SELECT VulnID FROM CVESummaryTable) 
+        OR ads.CVE_ID = '' 
+        OR (ads.VulnerabilityName LIKE '%amazon%' OR ads.VulnerabilityName LIKE '%open%' OR 
+            ads.VulnerabilityName LIKE '%apache%' OR ads.VulnerabilityName LIKE '%debian%' OR 
+            ads.VulnerabilityName LIKE '%node%' OR ads.VulnerabilityName LIKE '%smb%' OR 
+            ads.VulnerabilityName LIKE '%rocky%' OR ads.VulnerabilityName LIKE '%ubuntu%' OR 
+            ads.VulnerabilityName LIKE '%curl%' OR ads.VulnerabilityName LIKE '%azule%' OR 
+            ads.VulnerabilityName LIKE '%centos%' OR ads.VulnerabilityName LIKE '%jboss%' OR 
+            ads.VulnerabilityName LIKE '%php%' OR ads.VulnerabilityName LIKE '%python%' OR 
+            ads.VulnerabilityName LIKE '%puppet%' OR ads.VulnerabilityName LIKE '%ssh%' OR 
+            ads.VulnerabilityName LIKE '%ssl%' OR ads.VulnerabilityName LIKE '%tls%'))
+        THEN ads.CVE_ID END) AS Overdue_TenableAgent,
+    COUNT(DISTINCT a.AppID) AS CountApps,
+    GETDATE() AS LastUpdateDate
+FROM AllApps a  -- Start from AllApps to ensure only Level 1 apps
+LEFT JOIN AgentDailySummary ads ON a.AppID = ads.AppID
+LEFT JOIN BUMapping b ON a.T3_Manager = b.T3_Manager 
+                   AND a.T2_Manager = b.T2_Manager 
+                   AND a.T1_Manager = b.T1_Manager
+WHERE a.RiskLevel = 'Level 1'
+AND ads.Severity IN ('High', 'Critical')
+GROUP BY a.AppID, b.BU, a.T1_Manager, a.T2_Manager, a.T3_Manager;
