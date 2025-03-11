@@ -64,19 +64,32 @@ const CSFScopeTable = () => {
     );
   };
 
-  // **Layer 1: Subcategory Level**
+  // **Layer 1: Subcategory Level (with requested enhancements)**
   const SubcategoryColumns = useMemo(() => [
-    { accessorKey: "subcategoryName", header: "Subcategory Name" },
-    { accessorKey: "subcategoryDescription", header: "Subcategory Description" },
+    {
+      accessorKey: "subcategoryName",
+      header: "Subcategory",
+      size: 120, // Reduced column width
+    },
+    {
+      accessorKey: "subcategoryDescription",
+      header: "Description",
+      size: 300, // Allows for word wrapping
+      Cell: ({ cell }) => (
+        <div style={{ whiteSpace: "normal", wordWrap: "break-word", overflowWrap: "break-word" }}>
+          {cell.getValue()}
+        </div>
+      ),
+    },
     { accessorKey: "relatedSubcategories", header: "Related Subcategories" },
   ], []);
 
-  // **Layer 2: Business Unit Level**
+  // **Layer 2: Business Unit Level (Enable Horizontal Scrolling)**
   const BusinessUnitColumns = useMemo(() => [
-    { accessorKey: "businessUnitAbbr", header: "Business Unit", enableEditing: false },
+    { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
     {
       accessorKey: "businessUnitOwner",
-      header: "Business Unit Owner",
+      header: "BU Owner",
       Cell: ({ cell }) => cell.getValue() ? cell.getValue().split(", ").join(", ") : "N/A",
       Edit: ({ cell }) => (
         <Autocomplete
@@ -95,7 +108,7 @@ const CSFScopeTable = () => {
     },
     {
       accessorKey: "auditorSubcatCustodian",
-      header: "Auditor Subcategory Custodian",
+      header: "Auditor Custodian",
       Cell: ({ cell }) => cell.getValue() ? cell.getValue().split(", ").join(", ") : "N/A",
       Edit: ({ cell }) => (
         <Autocomplete
@@ -114,7 +127,7 @@ const CSFScopeTable = () => {
     },
     {
       accessorKey: "auditorIsInScope",
-      header: "Auditor Is In Scope",
+      header: "Auditor In Scope",
       Edit: ({ cell }) => (
         <TextField
           select
@@ -139,7 +152,7 @@ const CSFScopeTable = () => {
     },
     {
       accessorKey: "auditorProfileType",
-      header: "Auditor Profile Type",
+      header: "Profile Type",
       Edit: ({ cell }) => (
         <TextField
           select
@@ -156,7 +169,7 @@ const CSFScopeTable = () => {
     },
     {
       accessorKey: "auditorConsumingFromBusinessUnit",
-      header: "Auditor Consuming From Business Unit",
+      header: "Consuming From BU",
       Edit: ({ cell }) => (
         <TextField
           select
@@ -174,19 +187,6 @@ const CSFScopeTable = () => {
     },
   ], []);
 
-  // **Layer 3: Profile Type Info Panel**
-  const renderInfoPanel = () => (
-    <Box p={2}>
-      <Typography variant="h6">Profile Type Definitions:</Typography>
-      <ul>
-        <li><strong>Provider</strong> - Supplies services to other BUs</li>
-        <li><strong>Consumer</strong> - Receives services from other BUs</li>
-        <li><strong>Both</strong> - Acts as both Provider & Consumer</li>
-        <li><strong>Inheritor</strong> - Inherits control from another BU</li>
-      </ul>
-    </Box>
-  );
-
   // **Expands Subcategory → Business Units**
   const renderSubRow = ({ row }) => (
     <MaterialReactTable
@@ -194,7 +194,15 @@ const CSFScopeTable = () => {
       data={row.original.businessUnits}
       enableEditing
       editingMode="cell"
-      renderDetailPanel={renderInfoPanel}
+      enableColumnResizing
+      enableColumnDragging
+      enableColumnPinning
+      enableColumnOrdering
+      enableStickyHeader
+      enableStickyFooter
+      enablePagination={false}
+      enableRowVirtualization
+      enableHorizontalScroll // Enables horizontal scrolling
     />
   );
 
@@ -203,6 +211,14 @@ const CSFScopeTable = () => {
       columns={SubcategoryColumns}
       data={tableData}
       enableExpanding
+      enableStickyHeader
+      enableStickyFooter
+      enableColumnResizing
+      enableColumnDragging
+      enableColumnOrdering
+      enablePagination={false}
+      enableRowVirtualization
+      enableHorizontalScroll // Enables horizontal scrolling
       renderDetailPanel={renderSubRow}
     />
   );
