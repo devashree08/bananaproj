@@ -1,3 +1,44 @@
+import React from "react";
+import { TextField, MenuItem } from "@mui/material";
+
+{
+  accessorKey: "auditorIsInScope",
+  header: "In Scope?",
+  Edit: ({ cell }) => {
+    return (
+      <TextField
+        select
+        defaultValue={cell.getValue() || ""}
+        onChange={(event) => {
+          const newValue = event.target.value;
+          cell.setValue(newValue); // Correct way to update MRT state
+        }}
+      >
+        <MenuItem value="Yes">Yes</MenuItem>
+        <MenuItem value="No">No</MenuItem>
+      </TextField>
+    );
+  },
+},
+{
+  accessorKey: "auditorJustification",
+  header: "Justification",
+  Edit: ({ cell, table }) => {
+    // Get the current `auditorIsInScope` value from MRT's editing row state
+    const editingRow = table.getState().editingRowModel?.rows[cell.row.id]?.values;
+    const isInScope = editingRow?.auditorIsInScope ?? cell.getValue();
+
+    return (
+      <TextField
+        defaultValue={cell.getValue() || ""}
+        onChange={(event) => cell.setValue(event.target.value)}
+        disabled={isInScope !== "No"} // Correct dynamic enabling/disabling
+      />
+    );
+  },
+}
+
+
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
 import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
