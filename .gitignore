@@ -7,9 +7,19 @@ import axios from "axios";
 const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
 const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
+// Fetch Worker Names from API
+const fetchWorkerNames = async (inputValue) => {
+  try {
+    const response = await axios.get(`/api/GetWorkerName?search=${inputValue}`);
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching worker names:", error);
+    return [];
+  }
+};
+
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
-  const [subcategoryFilter, setSubcategoryFilter] = useState([]); // Multi-select filter state
 
   // Fetch Data from API
   useEffect(() => {
@@ -39,12 +49,6 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // Multi-Select Filter Logic for Subcategories
-  const filteredTableData = useMemo(() => {
-    if (subcategoryFilter.length === 0) return tableData;
-    return tableData.filter((item) => subcategoryFilter.includes(item.subcategoryName));
-  }, [subcategoryFilter, tableData]);
-
   // Handle Save Edits (Including Reset Logic)
   const handleSaveCell = (cell, value) => {
     setTableData((prevData) =>
@@ -69,7 +73,7 @@ const CSFScopeTable = () => {
     );
   };
 
-  // **Layer 1: Subcategory Level (Multi-Select Filter Added)**
+  // **Layer 1: Subcategory Level (Multi-Select Filtering Corrected)**
   const SubcategoryColumns = useMemo(() => [
     {
       accessorKey: "subcategoryName",
@@ -169,29 +173,28 @@ const CSFScopeTable = () => {
     </Box>
   );
 
-  // **Layer 2 & Layer 3 Expanding Logic**
-  const renderBusinessUnitLayer = ({ row }) => (
-    <MaterialReactTable
-      columns={BusinessUnitColumns}
-      data={row.original.businessUnits}
-      enableExpanding
-      renderDetailPanel={renderInfoPanel} // Layer 3 (Info Panel) expands under BU level
-      enableEditing
-      editingMode="modal"
-      enableHorizontalScroll // Enables horizontal scrolling for wide columns
-    />
-  );
-
   return (
     <MaterialReactTable
       columns={SubcategoryColumns}
-      data={filteredTableData} // Uses the filtered data
+      data={tableData}
       enableExpanding
       enableEditing
       editingMode="modal"
       enableColumnFilters
-      enableHorizontalScroll // Enables horizontal scrolling
-      renderDetailPanel={renderBusinessUnitLayer} // Expands to Business Unit (Layer 2), then to Info Layer (Layer 3)
+      enableStickyHeader
+      enableColumnResizing
+      enableColumnOrdering
+      enableHorizontalScroll
+      renderDetailPanel={({ row }) => (
+        <MaterialReactTable
+          columns={BusinessUnitColumns}
+          data={row.original.businessUnits}
+          enableExpanding
+          renderDetailPanel={renderInfoPanel}
+          enableEditing
+          editingMode="modal"
+        />
+      )}
     />
   );
 };
