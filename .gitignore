@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
-import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
+import { MenuItem, TextField, Autocomplete, Box, Typography, Dialog, DialogContent } from "@mui/material";
 import axios from "axios";
 
 // Profile Type & Business Unit Options
@@ -26,7 +26,6 @@ const CSFScopeTable = () => {
     const fetchData = async () => {
       try {
         const response = await axios.get("/api/ScopeData");
-        // Group data by subcategory
         const groupedData = Object.values(
           response.data.reduce((acc, item) => {
             if (!acc[item.subcategoryId]) {
@@ -50,31 +49,41 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // Handle Save Edits
+  // Handle Save Edits (Including Reset Logic)
   const handleSaveCell = (cell, value) => {
     setTableData((prevData) =>
       prevData.map((subcategory) => ({
         ...subcategory,
         businessUnits: subcategory.businessUnits.map((bu) =>
           bu.businessUnitAbbr === cell.row.original.businessUnitAbbr
-            ? { ...bu, [cell.column.id]: value }
+            ? {
+                ...bu,
+                [cell.column.id]: value,
+                ...(cell.column.id === "auditorProfileType" &&
+                !["Consumer", "Both"].includes(value)
+                  ? { auditorConsumingFromBusinessUnit: "" }
+                  : {}),
+                ...(cell.column.id === "auditorIsInScope" && value === "Yes"
+                  ? { auditorJustification: "" }
+                  : {}),
+              }
             : bu
         ),
       }))
     );
   };
 
-  // **Layer 1: Subcategory Level (with requested enhancements)**
+  // **Layer 1: Subcategory Level**
   const SubcategoryColumns = useMemo(() => [
     {
       accessorKey: "subcategoryName",
       header: "Subcategory",
-      size: 120, // Reduced column width
+      size: 120,
     },
     {
       accessorKey: "subcategoryDescription",
       header: "Description",
-      size: 300, // Allows for word wrapping
+      size: 300,
       Cell: ({ cell }) => (
         <div style={{ whiteSpace: "normal", wordWrap: "break-word", overflowWrap: "break-word" }}>
           {cell.getValue()}
@@ -84,7 +93,7 @@ const CSFScopeTable = () => {
     { accessorKey: "relatedSubcategories", header: "Related Subcategories" },
   ], []);
 
-  // **Layer 2: Business Unit Level (Enable Horizontal Scrolling)**
+  // **Layer 2: Business Unit Level**
   const BusinessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
     {
@@ -103,25 +112,6 @@ const CSFScopeTable = () => {
             }
           }}
           renderInput={(params) => <TextField {...params} label="Search Owners" />}
-        />
-      ),
-    },
-    {
-      accessorKey: "auditorSubcatCustodian",
-      header: "Auditor Custodian",
-      Cell: ({ cell }) => cell.getValue() ? cell.getValue().split(", ").join(", ") : "N/A",
-      Edit: ({ cell }) => (
-        <Autocomplete
-          multiple
-          options={[]} // Updated dynamically
-          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
-          onInputChange={async (event, newValue) => {
-            if (newValue) {
-              const workerNames = await fetchWorkerNames(newValue);
-              handleSaveCell(cell, workerNames.join(", "));
-            }
-          }}
-          renderInput={(params) => <TextField {...params} label="Search Custodians" />}
         />
       ),
     },
@@ -187,23 +177,17 @@ const CSFScopeTable = () => {
     },
   ], []);
 
-  // **Expands Subcategory → Business Units**
-  const renderSubRow = ({ row }) => (
-    <MaterialReactTable
-      columns={BusinessUnitColumns}
-      data={row.original.businessUnits}
-      enableEditing
-      editingMode="cell"
-      enableColumnResizing
-      enableColumnDragging
-      enableColumnPinning
-      enableColumnOrdering
-      enableStickyHeader
-      enableStickyFooter
-      enablePagination={false}
-      enableRowVirtualization
-      enableHorizontalScroll // Enables horizontal scrolling
-    />
+  // Expandable Info Panel
+  const renderInfoPanel = () => (
+    <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px" }}>
+      <Typography variant="h6" gutterBottom>Profile Type Definitions:</Typography>
+      <ul>
+        <li><strong>Provider</strong>: Supplies services to other BUs.</li>
+        <li><strong>Consumer</strong>: Receives services from other BUs.</li>
+        <li><strong>Both</strong>: Acts as both Provider & Consumer.</li>
+        <li><strong>Inheritor</strong>: Inherits control from another BU.</li>
+      </ul>
+    </Box>
   );
 
   return (
@@ -211,15 +195,20 @@ const CSFScopeTable = () => {
       columns={SubcategoryColumns}
       data={tableData}
       enableExpanding
-      enableStickyHeader
-      enableStickyFooter
+      enableEditing
+      editingMode="modal"
+      muiTableBodyCellEditTextFieldProps={{ sx: { minWidth: "500px" } }} // Expands Modal Width
+      enableColumnFilters
       enableColumnResizing
       enableColumnDragging
       enableColumnOrdering
-      enablePagination={false}
-      enableRowVirtualization
-      enableHorizontalScroll // Enables horizontal scrolling
-      renderDetailPanel={renderSubRow}
+      enableStickyHeader
+      renderDetailPanel={({ row }) => (
+        <div>
+          <MaterialReactTable columns={BusinessUnitColumns} data={row.original.businessUnits} enableEditing editingMode="modal" />
+          {renderInfoPanel()}
+        </div>
+      )}
     />
   );
 };
