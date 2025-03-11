@@ -89,20 +89,24 @@ const CSFScopeTable = () => {
       {
         accessorKey: "businessUnitAbbr",
         header: "Business Unit",
+        enableEditing: false, // Make it read-only
       },
       {
         accessorKey: "businessUnitOwner",
         header: "Business Unit Owner",
-        Cell: ({ cell }) => cell.getValue() || "N/A",
-        Edit: ({ cell, table }) => (
+        Cell: ({ cell }) => (cell.getValue() ? cell.getValue().split(", ").join(", ") : "N/A"),
+        Edit: ({ row, column, table }) => (
           <Autocomplete
             multiple
-            options={[]}
-            defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
-            onChange={async (event, newValue) => {
-              const inputValue = newValue.at(-1);
-              const workerNames = await fetchWorkerNames(inputValue);
-              table.setEditingCellValue(cell.id, workerNames);
+            options={[]} // Will be updated dynamically
+            defaultValue={row.original[column.id] ? row.original[column.id].split(", ") : []}
+            onInputChange={async (event, newValue) => {
+              if (newValue) {
+                const workerNames = await fetchWorkerNames(newValue);
+                table.options.mutateRowData(row.id, {
+                  [column.id]: workerNames.join(", "),
+                });
+              }
             }}
             renderInput={(params) => <TextField {...params} label="Search Owners" />}
           />
@@ -111,7 +115,23 @@ const CSFScopeTable = () => {
       {
         accessorKey: "auditorSubcatCustodian",
         header: "Auditor Subcategory Custodian",
-        Cell: ({ cell }) => cell.getValue() || "N/A",
+        Cell: ({ cell }) => (cell.getValue() ? cell.getValue().split(", ").join(", ") : "N/A"),
+        Edit: ({ row, column, table }) => (
+          <Autocomplete
+            multiple
+            options={[]} // Will be updated dynamically
+            defaultValue={row.original[column.id] ? row.original[column.id].split(", ") : []}
+            onInputChange={async (event, newValue) => {
+              if (newValue) {
+                const workerNames = await fetchWorkerNames(newValue);
+                table.options.mutateRowData(row.id, {
+                  [column.id]: workerNames.join(", "),
+                });
+              }
+            }}
+            renderInput={(params) => <TextField {...params} label="Search Custodians" />}
+          />
+        ),
       },
       {
         accessorKey: "auditorIsInScope",
@@ -120,7 +140,7 @@ const CSFScopeTable = () => {
           <TextField
             select
             defaultValue={cell.getValue() || ""}
-            onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
+            onChange={(event) => table.options.mutateRowData(cell.row.id, { auditorIsInScope: event.target.value })}
           >
             <MenuItem value="Yes">Yes</MenuItem>
             <MenuItem value="No">No</MenuItem>
@@ -133,44 +153,9 @@ const CSFScopeTable = () => {
         Edit: ({ cell, table }) => (
           <TextField
             defaultValue={cell.getValue() || ""}
-            onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
-            disabled={table.getEditingRow()?.getValue("auditorIsInScope") !== "No"}
+            onChange={(event) => table.options.mutateRowData(cell.row.id, { auditorJustification: event.target.value })}
+            disabled={cell.row.original.auditorIsInScope !== "No"}
           />
-        ),
-      },
-      {
-        accessorKey: "auditorProfileType",
-        header: "Auditor Profile Type",
-        Edit: ({ cell, table }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
-          >
-            {ProfileTypeOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "auditorConsumingFromBusinessUnit",
-        header: "Auditor Consuming From Business Unit",
-        Edit: ({ cell, table }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
-            disabled={!["Consumer", "Both"].includes(table.getEditingRow()?.getValue("auditorProfileType"))}
-          >
-            {BusinessUnitOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
         ),
       },
     ],
@@ -196,7 +181,7 @@ const CSFScopeTable = () => {
       columns={BusinessUnitColumns}
       data={row.original.businessUnits}
       enableEditing
-      editingMode="modal"
+      editingMode="cell"
       onEditingRowSave={handleSaveRow}
       renderDetailPanel={renderInfoPanel} // Layer 3: Info Panel
     />
