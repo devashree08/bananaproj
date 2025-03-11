@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MaterialReactTable } from 'material-react-table';
-import { MenuItem, TextField, Autocomplete } from '@mui/material';
+import { MenuItem, TextField, Autocomplete, Box, Typography } from '@mui/material';
 import axios from 'axios';
 
+// Dropdown options
 const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
 const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
+// Function to fetch worker names dynamically
 const fetchWorkerNames = async (inputValue) => {
   try {
     const response = await axios.get(`/api/GetWorkerName?search=${inputValue}`);
@@ -18,8 +20,8 @@ const fetchWorkerNames = async (inputValue) => {
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
-  
-  // Fetch initial data
+
+  // Fetch data on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -32,13 +34,15 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
+  // Function to save edited row
   const handleSaveRow = ({ row, values }) => {
     const updatedData = [...tableData];
     updatedData[row.index] = values;
     setTableData(updatedData);
   };
 
-  const columns = useMemo(() => [
+  // Subcategory columns (Layer 1)
+  const SubcategoryColumns = useMemo(() => [
     {
       accessorKey: 'subcategoryName',
       header: 'Subcategory Name',
@@ -52,10 +56,13 @@ const CSFScopeTable = () => {
       header: 'Related Subcategories',
       Cell: ({ cell }) => cell.getValue().join(', '),
     },
+  ], []);
+
+  // Business Unit columns (Layer 2 - Editable)
+  const BusinessUnitColumns = useMemo(() => [
     {
       accessorKey: 'businessUnitAbbr',
       header: 'Business Unit',
-      enableGrouping: true,
     },
     {
       accessorKey: 'businessUnitOwner',
@@ -155,22 +162,37 @@ const CSFScopeTable = () => {
     },
   ], []);
 
-  return (
+  // Layer 3: Information Panel
+  const renderInfoPanel = () => (
+    <Box p={2}>
+      <Typography variant="h6">Profile Type Definitions:</Typography>
+      <ul>
+        <li><strong>Provider</strong> - Supplies services to other BUs</li>
+        <li><strong>Consumer</strong> - Receives services from other BUs</li>
+        <li><strong>Both</strong> - Acts as both Provider & Consumer</li>
+        <li><strong>Inheritor</strong> - Inherits control from another BU</li>
+      </ul>
+    </Box>
+  );
+
+  // Render Nested Business Unit Table
+  const renderSubRow = ({ row }) => (
     <MaterialReactTable
-      columns={columns}
-      data={tableData}
-      enableGrouping
+      columns={BusinessUnitColumns}
+      data={row.original.businessUnits}
       enableEditing
       editingMode="modal"
       onEditingRowSave={handleSaveRow}
-      initialState={{
-        columnFilters: [
-          {
-            id: 'subcategoryName',
-            value: [], // Users can input multiple subcategory names to filter
-          },
-        ],
-      }}
+      renderDetailPanel={renderInfoPanel} // Layer 3: Profile Type Info
+    />
+  );
+
+  return (
+    <MaterialReactTable
+      columns={SubcategoryColumns}
+      data={tableData}
+      enableExpanding
+      renderDetailPanel={renderSubRow} // Expands to Layer 2 (BU Level)
     />
   );
 };
