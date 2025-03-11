@@ -7,19 +7,9 @@ import axios from "axios";
 const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
 const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
-// Fetch Worker Names from API
-const fetchWorkerNames = async (inputValue) => {
-  try {
-    const response = await axios.get(`/api/GetWorkerName?search=${inputValue}`);
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching worker names:", error);
-    return [];
-  }
-};
-
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
+  const [subcategoryFilter, setSubcategoryFilter] = useState([]); // Multi-select filter state
 
   // Fetch Data from API
   useEffect(() => {
@@ -49,6 +39,12 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
+  // Multi-Select Filter Logic for Subcategories
+  const filteredTableData = useMemo(() => {
+    if (subcategoryFilter.length === 0) return tableData;
+    return tableData.filter((item) => subcategoryFilter.includes(item.subcategoryName));
+  }, [subcategoryFilter, tableData]);
+
   // Handle Save Edits (Including Reset Logic)
   const handleSaveCell = (cell, value) => {
     setTableData((prevData) =>
@@ -73,9 +69,15 @@ const CSFScopeTable = () => {
     );
   };
 
-  // **Layer 1: Subcategory Level**
+  // **Layer 1: Subcategory Level (Multi-Select Filter Added)**
   const SubcategoryColumns = useMemo(() => [
-    { accessorKey: "subcategoryName", header: "Subcategory", size: 120 },
+    {
+      accessorKey: "subcategoryName",
+      header: "Subcategory",
+      size: 120,
+      filterVariant: "multi-select",
+      filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))], // Unique Subcategories
+    },
     {
       accessorKey: "subcategoryDescription",
       header: "Description",
@@ -87,11 +89,36 @@ const CSFScopeTable = () => {
       ),
     },
     { accessorKey: "relatedSubcategories", header: "Related Subcategories" },
-  ], []);
+  ], [tableData]);
 
   // **Layer 2: Business Unit Level**
   const BusinessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
+    {
+      accessorKey: "auditorIsInScope",
+      header: "In Scope?",
+      Edit: ({ cell }) => (
+        <TextField
+          select
+          defaultValue={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell, event.target.value)}
+        >
+          <MenuItem value="Yes">Yes</MenuItem>
+          <MenuItem value="No">No</MenuItem>
+        </TextField>
+      ),
+    },
+    {
+      accessorKey: "auditorJustification",
+      header: "Justification",
+      Edit: ({ cell }) => (
+        <TextField
+          defaultValue={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell, event.target.value)}
+          disabled={cell.row.original.auditorIsInScope !== "No"}
+        />
+      ),
+    },
     {
       accessorKey: "auditorProfileType",
       header: "Profile Type",
@@ -151,22 +178,19 @@ const CSFScopeTable = () => {
       renderDetailPanel={renderInfoPanel} // Layer 3 (Info Panel) expands under BU level
       enableEditing
       editingMode="modal"
+      enableHorizontalScroll // Enables horizontal scrolling for wide columns
     />
   );
 
   return (
     <MaterialReactTable
       columns={SubcategoryColumns}
-      data={tableData}
+      data={filteredTableData} // Uses the filtered data
       enableExpanding
       enableEditing
       editingMode="modal"
-      muiTableBodyCellEditTextFieldProps={{ sx: { minWidth: "500px" } }} // Expands Modal Width
       enableColumnFilters
-      enableColumnResizing
-      enableColumnDragging
-      enableColumnOrdering
-      enableStickyHeader
+      enableHorizontalScroll // Enables horizontal scrolling
       renderDetailPanel={renderBusinessUnitLayer} // Expands to Business Unit (Layer 2), then to Info Layer (Layer 3)
     />
   );
