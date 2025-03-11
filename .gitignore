@@ -1,205 +1,178 @@
-import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
-import MaterialReactTable from "material-react-table";
-import {
-  Typography,
-  CircularProgress,
-  Alert,
-  Box,
-  TextField,
-  Autocomplete,
-  Chip,
-} from "@mui/material";
-import InfoIcon from "@mui/icons-material/Info";
+import React, { useEffect, useMemo, useState } from 'react';
+import { MaterialReactTable } from 'material-react-table';
+import { MenuItem, TextField, Autocomplete } from '@mui/material';
+import axios from 'axios';
 
-const ScopeManagement = () => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [users, setUsers] = useState([]); // Holds Business Unit Owners & Auditors
+const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
+const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
-  // ✅ Fetch main API `/api/scope`
-  useEffect(() => {
-    const fetchCSFScopeData = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get("/api/scope");
-
-        // ✅ Ensure that API Data stays unchanged but handles null/empty fields correctly
-        const sanitizedData = response.data.map((subcategory) => ({
-          ...subcategory,
-          businessUnits: subcategory.businessUnits.map((bu) => ({
-            ...bu,
-            businessUnitOwner: bu.businessUnitOwner && Array.isArray(bu.businessUnitOwner)
-              ? bu.businessUnitOwner
-              : [], // ✅ Convert `null` or empty string to []
-            auditorSubcatCustodian: bu.auditorSubcatCustodian && Array.isArray(bu.auditorSubcatCustodian)
-              ? bu.auditorSubcatCustodian
-              : [], // ✅ Convert `null` or empty string to []
-          })),
-        }));
-
-        setData(sanitizedData);
-      } catch (err) {
-        console.error("Error fetching CSF scope data:", err);
-        setError("Failed to load data. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCSFScopeData();
-  }, []);
-
-  // ✅ Fetch Business Unit Owners & Auditor Names Separately
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        // Simulated API Fetch for Users
-        const userResponse = await new Promise((resolve) =>
-          setTimeout(
-            () =>
-              resolve({
-                data: [
-                  { id: 1, name: "John Doe" },
-                  { id: 2, name: "Jane Smith" },
-                  { id: 3, name: "Robert Johnson" },
-                  { id: 4, name: "Emily Davis" },
-                  { id: 5, name: "Michael Brown" },
-                ],
-              }),
-            1000
-          )
-        );
-        setUsers(userResponse.data);
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      }
-    };
-    fetchUserData();
-  }, []);
-
-  const columns = useMemo(
-    () => [
-      { accessorKey: "subcategoryName", header: "Subcategory Name" },
-      { accessorKey: "subcategoryDescription", header: "Description" },
-      { accessorKey: "relatedCsf1_1Subcategories", header: "Related CSF 1.1" },
-    ],
-    []
-  );
-
-  const businessUnitColumns = useMemo(
-    () => [
-      { accessorKey: "businessUnitAbbr", header: "Business Unit" },
-      {
-        accessorKey: "businessUnitOwner",
-        header: "Business Unit Owner",
-        enableEditing: true,
-        editComponent: ({ cell, row }) => {
-          const value = cell.getValue();
-          console.log("DEBUG: BusinessUnitOwner Value ->", value);
-
-          return (
-            <SearchableMultiSelect
-              value={Array.isArray(value) ? value : []} // ✅ Fix: Always Array
-              onChange={(newValue) => row.updateData("businessUnitOwner", newValue)}
-              options={users}
-            />
-          );
-        },
-      },
-      {
-        accessorKey: "auditorSubcatCustodian",
-        header: "Auditor Custodian",
-        enableEditing: true,
-        editComponent: ({ cell, row }) => {
-          const value = cell.getValue();
-          console.log("DEBUG: AuditorSubcatCustodian Value ->", value);
-
-          return (
-            <SearchableMultiSelect
-              value={Array.isArray(value) ? value : []} // ✅ Fix: Always Array
-              onChange={(newValue) => row.updateData("auditorSubcatCustodian", newValue)}
-              options={users}
-            />
-          );
-        },
-      },
-    ],
-    [users]
-  );
-
-  return (
-    <Box sx={{ padding: "20px" }}>
-      {loading ? (
-        <CircularProgress sx={{ display: "block", margin: "auto", mt: 4 }} />
-      ) : error ? (
-        <Alert severity="error">{error}</Alert>
-      ) : (
-        <MaterialReactTable
-          columns={columns}
-          data={data}
-          enableGrouping
-          enableEditing={false}
-          enableExpanding
-          renderDetailPanel={({ row }) => (
-            <MaterialReactTable
-              columns={businessUnitColumns}
-              data={row.original.businessUnits}
-              enableEditing
-              editDisplayMode="row"
-              enableExpanding
-              renderDetailPanel={({ row }) => <ProfileTypeDefinition />}
-            />
-          )}
-        />
-      )}
-    </Box>
-  );
+const fetchWorkerNames = async (inputValue) => {
+  try {
+    const response = await axios.get(`/api/GetWorkerName?search=${inputValue}`);
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching worker names:", error);
+    return [];
+  }
 };
 
-// ✅ Searchable Multi-Select Component (Handles All Cases Correctly)
-const SearchableMultiSelect = ({ value, onChange, options }) => {
-  console.log("DEBUG: SearchableMultiSelect Value ->", value);
+const CSFScopeTable = () => {
+  const [tableData, setTableData] = useState([]);
+  
+  // Fetch initial data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get('/api/ScopeData');
+        setTableData(response.data);
+      } catch (error) {
+        console.error("Error fetching scope data:", error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleSaveRow = ({ row, values }) => {
+    const updatedData = [...tableData];
+    updatedData[row.index] = values;
+    setTableData(updatedData);
+  };
+
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'subcategoryName',
+      header: 'Subcategory Name',
+    },
+    {
+      accessorKey: 'subcategoryDescription',
+      header: 'Subcategory Description',
+    },
+    {
+      accessorKey: 'relatedCsf1_1Subcategories',
+      header: 'Related Subcategories',
+      Cell: ({ cell }) => cell.getValue().join(', '),
+    },
+    {
+      accessorKey: 'businessUnitAbbr',
+      header: 'Business Unit',
+      enableGrouping: true,
+    },
+    {
+      accessorKey: 'businessUnitOwner',
+      header: 'Business Unit Owner',
+      Cell: ({ cell }) => cell.getValue().join(', '),
+      Edit: ({ cell, table }) => (
+        <Autocomplete
+          multiple
+          options={[]}
+          defaultValue={cell.getValue() ?? []}
+          onChange={async (event, newValue) => {
+            const inputValue = newValue.at(-1);
+            const workerNames = await fetchWorkerNames(inputValue);
+            table.setEditingCellValue(cell.id, workerNames);
+          }}
+          renderInput={(params) => <TextField {...params} label="Search Owners" />}
+        />
+      ),
+    },
+    {
+      accessorKey: 'auditorSubcatCustodian',
+      header: 'Auditor Subcategory Custodian',
+      Cell: ({ cell }) => cell.getValue().join(', '),
+      Edit: ({ cell, table }) => (
+        <Autocomplete
+          multiple
+          options={[]}
+          defaultValue={cell.getValue() ?? []}
+          onChange={async (event, newValue) => {
+            const inputValue = newValue.at(-1);
+            const workerNames = await fetchWorkerNames(inputValue);
+            table.setEditingCellValue(cell.id, workerNames);
+          }}
+          renderInput={(params) => <TextField {...params} label="Search Custodians" />}
+        />
+      ),
+    },
+    {
+      accessorKey: 'auditorIsInScope',
+      header: 'Auditor Is In Scope',
+      Edit: ({ cell, table }) => (
+        <TextField
+          select
+          defaultValue={cell.getValue() ?? ''}
+          onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
+        >
+          <MenuItem value="Yes">Yes</MenuItem>
+          <MenuItem value="No">No</MenuItem>
+        </TextField>
+      ),
+    },
+    {
+      accessorKey: 'auditorJustification',
+      header: 'Auditor Justification',
+      Edit: ({ cell, table }) => (
+        <TextField
+          defaultValue={cell.getValue() ?? ''}
+          onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
+          disabled={table.getEditingRow()?.getValue('auditorIsInScope') !== 'No'}
+        />
+      ),
+    },
+    {
+      accessorKey: 'auditorProfileType',
+      header: 'Auditor Profile Type',
+      Edit: ({ cell, table }) => (
+        <TextField
+          select
+          defaultValue={cell.getValue() ?? ''}
+          onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
+        >
+          {ProfileTypeOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+      ),
+    },
+    {
+      accessorKey: 'auditorConsumingFromBusinessUnit',
+      header: 'Auditor Consuming From Business Unit',
+      Edit: ({ cell, table }) => (
+        <TextField
+          select
+          defaultValue={cell.getValue() ?? ''}
+          onChange={(event) => table.setEditingCellValue(cell.id, event.target.value)}
+          disabled={!['Consumer', 'Both'].includes(table.getEditingRow()?.getValue('auditorProfileType'))}
+        >
+          {BusinessUnitOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+      ),
+    },
+  ], []);
 
   return (
-    <Autocomplete
-      multiple
-      options={options}
-      getOptionLabel={(option) => option.name}
-      filterSelectedOptions
-      value={Array.isArray(value) ? value : []} // ✅ FIXED: Prevents Undefined `.length` Error
-      onChange={(event, newValue) => {
-        if (newValue.length <= 4) {
-          onChange(newValue);
-        }
+    <MaterialReactTable
+      columns={columns}
+      data={tableData}
+      enableGrouping
+      enableEditing
+      editingMode="modal"
+      onEditingRowSave={handleSaveRow}
+      initialState={{
+        columnFilters: [
+          {
+            id: 'subcategoryName',
+            value: [], // Users can input multiple subcategory names to filter
+          },
+        ],
       }}
-      renderInput={(params) => <TextField {...params} label="Search Users" />}
-      renderTags={(selected, getTagProps) =>
-        selected.map((option, index) => (
-          <Chip
-            key={option.id}
-            label={option.name}
-            {...getTagProps({ index })}
-          />
-        ))
-      }
     />
   );
 };
 
-// 📖 Detail Panel with Profile Type Definitions
-const ProfileTypeDefinition = () => {
-  return (
-    <Box sx={{ padding: "16px" }}>
-      <Typography variant="h6">
-        <InfoIcon fontSize="small" /> Profile Type Definitions
-      </Typography>
-      <Typography>Provider: Provides data to other units.</Typography>
-      <Typography>Contributor: Contributes to shared initiatives.</Typography>
-      <Typography>Both: Acts as both Provider and Contributor.</Typography>
-      <Typography>Inheritor: Receives data but does not contribute.</Typography>
-    </Box>
-  );
-};
-
-export default ScopeManagement;
+export default CSFScopeTable;
