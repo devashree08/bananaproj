@@ -1,22 +1,11 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
-import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
+import { MenuItem, TextField, Autocomplete, Box, Typography, Dialog, DialogTitle, DialogContent } from "@mui/material";
 import axios from "axios";
 
 // Profile Type & Business Unit Options
 const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
 const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
-
-// Fetch Worker Names from API
-const fetchWorkerNames = async (inputValue) => {
-  try {
-    const response = await axios.get(`/api/GetWorkerName?search=${inputValue}`);
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching worker names:", error);
-    return [];
-  }
-};
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
@@ -117,24 +106,6 @@ const CSFScopeTable = () => {
       ),
     },
     {
-      accessorKey: "auditorSubcatCustodian",
-      header: "Auditor Custodian",
-      Edit: ({ cell }) => (
-        <Autocomplete
-          multiple
-          options={[]} // Updated dynamically
-          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
-          onInputChange={async (event, newValue) => {
-            if (newValue) {
-              const workerNames = await fetchWorkerNames(newValue);
-              handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, workerNames.join(", "));
-            }
-          }}
-          renderInput={(params) => <TextField {...params} label="Search Custodians" />}
-        />
-      ),
-    },
-    {
       accessorKey: "auditorIsInScope",
       header: "In Scope?",
       Edit: ({ cell }) => (
@@ -157,6 +128,41 @@ const CSFScopeTable = () => {
           onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
           disabled={cell.row.original.auditorIsInScope !== "No"}
         />
+      ),
+    },
+    {
+      accessorKey: "auditorProfileType",
+      header: "Profile Type",
+      Edit: ({ cell }) => (
+        <TextField
+          select
+          value={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
+        >
+          {ProfileTypeOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+      ),
+    },
+    {
+      accessorKey: "auditorConsumingFromBusinessUnit",
+      header: "Consuming From BU",
+      Edit: ({ cell }) => (
+        <TextField
+          select
+          value={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
+          disabled={!["Consumer", "Both"].includes(cell.row.original.auditorProfileType)}
+        >
+          {BusinessUnitOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
       ),
     },
   ], []);
@@ -191,7 +197,7 @@ const CSFScopeTable = () => {
           enableExpanding
           enableEditing
           editingMode="modal"
-          renderDetailPanel={renderInfoPanel} // LAYER 3 FIXED
+          renderDetailPanel={renderInfoPanel} // INFO LAYER FIXED
         />
       )}
     />
