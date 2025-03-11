@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
-import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
+import { MenuItem, TextField, Autocomplete, Box, Typography, Dialog, DialogTitle, DialogContent } from "@mui/material";
 import axios from "axios";
 
 // Profile Type & Business Unit Options
@@ -49,21 +49,21 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // Handle Save Edits (Including Reset Logic)
-  const handleSaveCell = (cell, value) => {
+  // Handle Save Edits (Instantaneous Updates)
+  const handleSaveCell = (rowId, columnId, value) => {
     setTableData((prevData) =>
       prevData.map((subcategory) => ({
         ...subcategory,
         businessUnits: subcategory.businessUnits.map((bu) =>
-          bu.businessUnitAbbr === cell.row.original.businessUnitAbbr
+          bu.businessUnitAbbr === rowId
             ? {
                 ...bu,
-                [cell.column.id]: value,
-                ...(cell.column.id === "auditorProfileType" &&
+                [columnId]: value,
+                ...(columnId === "auditorProfileType" &&
                 !["Consumer", "Both"].includes(value)
                   ? { auditorConsumingFromBusinessUnit: "" }
                   : {}),
-                ...(cell.column.id === "auditorIsInScope" && value === "Yes"
+                ...(columnId === "auditorIsInScope" && value === "Yes"
                   ? { auditorJustification: "" }
                   : {}),
               }
@@ -73,7 +73,7 @@ const CSFScopeTable = () => {
     );
   };
 
-  // **Layer 1: Subcategory Level (Multi-Select Filtering Corrected)**
+  // **Layer 1: Subcategory Level (Multi-Select Filtering)**
   const SubcategoryColumns = useMemo(() => [
     {
       accessorKey: "subcategoryName",
@@ -95,17 +95,53 @@ const CSFScopeTable = () => {
     { accessorKey: "relatedSubcategories", header: "Related Subcategories" },
   ], [tableData]);
 
-  // **Layer 2: Business Unit Level**
+  // **Layer 2: Business Unit Level (with Owner & Custodian Fields)**
   const BusinessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
+    {
+      accessorKey: "businessUnitOwner",
+      header: "BU Owner",
+      Edit: ({ cell }) => (
+        <Autocomplete
+          multiple
+          options={[]} // Updated dynamically
+          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
+          onInputChange={async (event, newValue) => {
+            if (newValue) {
+              const workerNames = await fetchWorkerNames(newValue);
+              handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, workerNames.join(", "));
+            }
+          }}
+          renderInput={(params) => <TextField {...params} label="Search Owners" />}
+        />
+      ),
+    },
+    {
+      accessorKey: "auditorSubcatCustodian",
+      header: "Auditor Custodian",
+      Edit: ({ cell }) => (
+        <Autocomplete
+          multiple
+          options={[]} // Updated dynamically
+          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
+          onInputChange={async (event, newValue) => {
+            if (newValue) {
+              const workerNames = await fetchWorkerNames(newValue);
+              handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, workerNames.join(", "));
+            }
+          }}
+          renderInput={(params) => <TextField {...params} label="Search Custodians" />}
+        />
+      ),
+    },
     {
       accessorKey: "auditorIsInScope",
       header: "In Scope?",
       Edit: ({ cell }) => (
         <TextField
           select
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
+          value={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
         >
           <MenuItem value="Yes">Yes</MenuItem>
           <MenuItem value="No">No</MenuItem>
@@ -117,8 +153,8 @@ const CSFScopeTable = () => {
       header: "Justification",
       Edit: ({ cell }) => (
         <TextField
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
+          value={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
           disabled={cell.row.original.auditorIsInScope !== "No"}
         />
       ),
@@ -129,8 +165,8 @@ const CSFScopeTable = () => {
       Edit: ({ cell }) => (
         <TextField
           select
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
+          value={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
         >
           {ProfileTypeOptions.map((option) => (
             <MenuItem key={option} value={option}>
@@ -146,8 +182,8 @@ const CSFScopeTable = () => {
       Edit: ({ cell }) => (
         <TextField
           select
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
+          value={cell.getValue() || ""}
+          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
           disabled={!["Consumer", "Both"].includes(cell.row.original.auditorProfileType)}
         >
           {BusinessUnitOptions.map((option) => (
@@ -160,19 +196,6 @@ const CSFScopeTable = () => {
     },
   ], []);
 
-  // **Layer 3: Expandable Info Panel**
-  const renderInfoPanel = () => (
-    <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
-      <Typography variant="h6" gutterBottom>Profile Type Definitions:</Typography>
-      <ul>
-        <li><strong>Provider</strong>: Supplies services to other BUs.</li>
-        <li><strong>Consumer</strong>: Receives services from other BUs.</li>
-        <li><strong>Both</strong>: Acts as both Provider & Consumer.</li>
-        <li><strong>Inheritor</strong>: Inherits control from another BU.</li>
-      </ul>
-    </Box>
-  );
-
   return (
     <MaterialReactTable
       columns={SubcategoryColumns}
@@ -180,17 +203,14 @@ const CSFScopeTable = () => {
       enableExpanding
       enableEditing
       editingMode="modal"
+      muiTableBodyCellEditTextFieldProps={{ sx: { minWidth: "600px" } }} // EXPANDED MODAL WIDTH
       enableColumnFilters
-      enableStickyHeader
-      enableColumnResizing
-      enableColumnOrdering
       enableHorizontalScroll
       renderDetailPanel={({ row }) => (
         <MaterialReactTable
           columns={BusinessUnitColumns}
           data={row.original.businessUnits}
           enableExpanding
-          renderDetailPanel={renderInfoPanel}
           enableEditing
           editingMode="modal"
         />
