@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
-import { MenuItem, TextField, Autocomplete, Box, Typography, Dialog, DialogTitle, DialogContent } from "@mui/material";
+import { MenuItem, TextField, Autocomplete, Box, Typography, Dialog, DialogActions, Button } from "@mui/material";
 import axios from "axios";
 
 // Profile Type & Business Unit Options
@@ -9,6 +9,7 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
+  const [modalData, setModalData] = useState(null); // Tracks the data currently being edited in the modal
 
   // Fetch Data from API
   useEffect(() => {
@@ -38,28 +39,39 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // Handle Save Edits (Instantaneous Updates)
-  const handleSaveCell = (rowId, columnId, value) => {
+  // Open modal and load selected row data
+  const openModal = (row) => setModalData({ ...row });
+
+  // Close modal and save changes to table
+  const saveModalChanges = () => {
     setTableData((prevData) =>
       prevData.map((subcategory) => ({
         ...subcategory,
         businessUnits: subcategory.businessUnits.map((bu) =>
-          bu.businessUnitAbbr === rowId
-            ? {
-                ...bu,
-                [columnId]: value,
-                ...(columnId === "auditorProfileType" &&
-                !["Consumer", "Both"].includes(value)
-                  ? { auditorConsumingFromBusinessUnit: "" }
-                  : {}),
-                ...(columnId === "auditorIsInScope" && value === "Yes"
-                  ? { auditorJustification: "" }
-                  : {}),
-              }
-            : bu
+          bu.businessUnitAbbr === modalData.businessUnitAbbr ? { ...modalData } : bu
         ),
       }))
     );
+    setModalData(null);
+  };
+
+  // Handle updates inside the modal (live updates within modal)
+  const handleModalChange = (field, value) => {
+    setModalData((prev) => {
+      const updatedData = { ...prev, [field]: value };
+
+      // If `auditorIsInScope` changes, update `auditorJustification`
+      if (field === "auditorIsInScope" && value === "Yes") {
+        updatedData.auditorJustification = "";
+      }
+
+      // If `auditorProfileType` changes, update `auditorConsumingFromBusinessUnit`
+      if (field === "auditorProfileType" && !["Consumer", "Both"].includes(value)) {
+        updatedData.auditorConsumingFromBusinessUnit = "";
+      }
+
+      return updatedData;
+    });
   };
 
   // **Layer 1: Subcategory Level (Multi-Select Filtering)**
@@ -88,119 +100,88 @@ const CSFScopeTable = () => {
   const BusinessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
     {
-      accessorKey: "businessUnitOwner",
-      header: "BU Owner",
-      Edit: ({ cell }) => (
-        <Autocomplete
-          multiple
-          options={[]} // Updated dynamically
-          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
-          onInputChange={async (event, newValue) => {
-            if (newValue) {
-              const workerNames = await fetchWorkerNames(newValue);
-              handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, workerNames.join(", "));
-            }
-          }}
-          renderInput={(params) => <TextField {...params} label="Search Owners" />}
-        />
-      ),
-    },
-    {
       accessorKey: "auditorIsInScope",
       header: "In Scope?",
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          value={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
-        >
-          <MenuItem value="Yes">Yes</MenuItem>
-          <MenuItem value="No">No</MenuItem>
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: "auditorJustification",
-      header: "Justification",
-      Edit: ({ cell }) => (
-        <TextField
-          value={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
-          disabled={cell.row.original.auditorIsInScope !== "No"}
-        />
-      ),
-    },
-    {
-      accessorKey: "auditorProfileType",
-      header: "Profile Type",
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          value={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
-        >
-          {ProfileTypeOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: "auditorConsumingFromBusinessUnit",
-      header: "Consuming From BU",
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          value={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell.row.original.businessUnitAbbr, cell.column.id, event.target.value)}
-          disabled={!["Consumer", "Both"].includes(cell.row.original.auditorProfileType)}
-        >
-          {BusinessUnitOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
-        </TextField>
+      Cell: ({ row }) => (
+        <Button variant="contained" onClick={() => openModal(row.original)}>Edit</Button>
       ),
     },
   ], []);
 
-  // **Layer 3: Expandable Info Panel**
-  const renderInfoPanel = () => (
-    <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
-      <Typography variant="h6" gutterBottom>Profile Type Definitions:</Typography>
-      <ul>
-        <li><strong>Provider</strong>: Supplies services to other BUs.</li>
-        <li><strong>Consumer</strong>: Receives services from other BUs.</li>
-        <li><strong>Both</strong>: Acts as both Provider & Consumer.</li>
-        <li><strong>Inheritor</strong>: Inherits control from another BU.</li>
-      </ul>
-    </Box>
-  );
-
   return (
-    <MaterialReactTable
-      columns={SubcategoryColumns}
-      data={tableData}
-      enableExpanding
-      enableEditing
-      editingMode="modal"
-      muiTableBodyCellEditTextFieldProps={{ sx: { minWidth: "600px" } }} // EXPANDED MODAL WIDTH
-      enableColumnFilters
-      enableHorizontalScroll
-      renderDetailPanel={({ row }) => (
-        <MaterialReactTable
-          columns={BusinessUnitColumns}
-          data={row.original.businessUnits}
-          enableExpanding
-          enableEditing
-          editingMode="modal"
-          renderDetailPanel={renderInfoPanel} // INFO LAYER FIXED
-        />
+    <>
+      <MaterialReactTable
+        columns={SubcategoryColumns}
+        data={tableData}
+        enableExpanding
+        enableEditing
+        editingMode="modal"
+        muiTableBodyCellEditTextFieldProps={{ sx: { minWidth: "600px" } }} // Expanded Modal Width
+        enableColumnFilters
+        enableHorizontalScroll
+        renderDetailPanel={({ row }) => (
+          <MaterialReactTable
+            columns={BusinessUnitColumns}
+            data={row.original.businessUnits}
+            enableExpanding
+            enableEditing
+            editingMode="modal"
+            renderDetailPanel={() => (
+              <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
+                <Typography variant="h6">Profile Type Definitions</Typography>
+                <ul>
+                  <li><strong>Provider:</strong> Supplies services to other BUs.</li>
+                  <li><strong>Consumer:</strong> Receives services from other BUs.</li>
+                  <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
+                  <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
+                </ul>
+              </Box>
+            )}
+          />
+        )}
+      />
+
+      {/* Modal for Editing */}
+      {modalData && (
+        <Dialog open={!!modalData} onClose={() => setModalData(null)} maxWidth="md" fullWidth>
+          <Box p={3}>
+            <Typography variant="h6" gutterBottom>Edit Business Unit</Typography>
+            <TextField
+              select
+              fullWidth
+              label="In Scope?"
+              defaultValue={modalData.auditorIsInScope}
+              onChange={(e) => handleModalChange("auditorIsInScope", e.target.value)}
+            >
+              <MenuItem value="Yes">Yes</MenuItem>
+              <MenuItem value="No">No</MenuItem>
+            </TextField>
+            <TextField
+              fullWidth
+              label="Justification"
+              defaultValue={modalData.auditorJustification}
+              onChange={(e) => handleModalChange("auditorJustification", e.target.value)}
+              disabled={modalData.auditorIsInScope !== "No"}
+            />
+            <TextField
+              select
+              fullWidth
+              label="Profile Type"
+              defaultValue={modalData.auditorProfileType}
+              onChange={(e) => handleModalChange("auditorProfileType", e.target.value)}
+            >
+              {ProfileTypeOptions.map((option) => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
+            </TextField>
+            <DialogActions>
+              <Button onClick={() => setModalData(null)}>Cancel</Button>
+              <Button variant="contained" onClick={saveModalChanges}>Save</Button>
+            </DialogActions>
+          </Box>
+        </Dialog>
       )}
-    />
+    </>
   );
 };
 
