@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
-import { MenuItem, TextField, Autocomplete, Box, Typography, Dialog, DialogContent } from "@mui/material";
+import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
 import axios from "axios";
 
 // Profile Type & Business Unit Options
@@ -75,11 +75,7 @@ const CSFScopeTable = () => {
 
   // **Layer 1: Subcategory Level**
   const SubcategoryColumns = useMemo(() => [
-    {
-      accessorKey: "subcategoryName",
-      header: "Subcategory",
-      size: 120,
-    },
+    { accessorKey: "subcategoryName", header: "Subcategory", size: 120 },
     {
       accessorKey: "subcategoryDescription",
       header: "Description",
@@ -96,50 +92,6 @@ const CSFScopeTable = () => {
   // **Layer 2: Business Unit Level**
   const BusinessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
-    {
-      accessorKey: "businessUnitOwner",
-      header: "BU Owner",
-      Cell: ({ cell }) => cell.getValue() ? cell.getValue().split(", ").join(", ") : "N/A",
-      Edit: ({ cell }) => (
-        <Autocomplete
-          multiple
-          options={[]} // Updated dynamically
-          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
-          onInputChange={async (event, newValue) => {
-            if (newValue) {
-              const workerNames = await fetchWorkerNames(newValue);
-              handleSaveCell(cell, workerNames.join(", "));
-            }
-          }}
-          renderInput={(params) => <TextField {...params} label="Search Owners" />}
-        />
-      ),
-    },
-    {
-      accessorKey: "auditorIsInScope",
-      header: "Auditor In Scope",
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
-        >
-          <MenuItem value="Yes">Yes</MenuItem>
-          <MenuItem value="No">No</MenuItem>
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: "auditorJustification",
-      header: "Auditor Justification",
-      Edit: ({ cell }) => (
-        <TextField
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
-          disabled={cell.row.original.auditorIsInScope !== "No"}
-        />
-      ),
-    },
     {
       accessorKey: "auditorProfileType",
       header: "Profile Type",
@@ -177,9 +129,9 @@ const CSFScopeTable = () => {
     },
   ], []);
 
-  // Expandable Info Panel
+  // **Layer 3: Expandable Info Panel**
   const renderInfoPanel = () => (
-    <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px" }}>
+    <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
       <Typography variant="h6" gutterBottom>Profile Type Definitions:</Typography>
       <ul>
         <li><strong>Provider</strong>: Supplies services to other BUs.</li>
@@ -188,6 +140,18 @@ const CSFScopeTable = () => {
         <li><strong>Inheritor</strong>: Inherits control from another BU.</li>
       </ul>
     </Box>
+  );
+
+  // **Layer 2 & Layer 3 Expanding Logic**
+  const renderBusinessUnitLayer = ({ row }) => (
+    <MaterialReactTable
+      columns={BusinessUnitColumns}
+      data={row.original.businessUnits}
+      enableExpanding
+      renderDetailPanel={renderInfoPanel} // Layer 3 (Info Panel) expands under BU level
+      enableEditing
+      editingMode="modal"
+    />
   );
 
   return (
@@ -203,12 +167,7 @@ const CSFScopeTable = () => {
       enableColumnDragging
       enableColumnOrdering
       enableStickyHeader
-      renderDetailPanel={({ row }) => (
-        <div>
-          <MaterialReactTable columns={BusinessUnitColumns} data={row.original.businessUnits} enableEditing editingMode="modal" />
-          {renderInfoPanel()}
-        </div>
-      )}
+      renderDetailPanel={renderBusinessUnitLayer} // Expands to Business Unit (Layer 2), then to Info Layer (Layer 3)
     />
   );
 };
