@@ -9,7 +9,7 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
-  const [modalData, setModalData] = useState(null); // Tracks the data currently being edited in the modal
+  const [modalData, setModalData] = useState(null);
 
   // Fetch Data from API
   useEffect(() => {
@@ -81,7 +81,7 @@ const CSFScopeTable = () => {
       header: "Subcategory",
       size: 120,
       filterVariant: "multi-select",
-      filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))], // Unique Subcategories
+      filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))],
     },
     {
       accessorKey: "subcategoryDescription",
@@ -99,13 +99,11 @@ const CSFScopeTable = () => {
   // **Layer 2: Business Unit Level**
   const BusinessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
-    {
-      accessorKey: "auditorIsInScope",
-      header: "In Scope?",
-      Cell: ({ row }) => (
-        <Button variant="contained" onClick={() => openModal(row.original)}>Edit</Button>
-      ),
-    },
+    { accessorKey: "businessUnitOwner", header: "BU Owner" },
+    { accessorKey: "auditorIsInScope", header: "In Scope?" },
+    { accessorKey: "auditorJustification", header: "Justification" },
+    { accessorKey: "auditorProfileType", header: "Profile Type" },
+    { accessorKey: "auditorConsumingFromBusinessUnit", header: "Consuming From BU" },
   ], []);
 
   return (
@@ -171,6 +169,18 @@ const CSFScopeTable = () => {
               onChange={(e) => handleModalChange("auditorProfileType", e.target.value)}
             >
               {ProfileTypeOptions.map((option) => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              fullWidth
+              label="Consuming From BU"
+              defaultValue={modalData.auditorConsumingFromBusinessUnit}
+              onChange={(e) => handleModalChange("auditorConsumingFromBusinessUnit", e.target.value)}
+              disabled={!["Consumer", "Both"].includes(modalData.auditorProfileType)}
+            >
+              {BusinessUnitOptions.map((option) => (
                 <MenuItem key={option} value={option}>{option}</MenuItem>
               ))}
             </TextField>
