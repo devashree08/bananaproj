@@ -9,6 +9,7 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
+  const [selectedBU, setSelectedBU] = useState([]); // For BU filtering at L1
   const [editingRow, setEditingRow] = useState(null);
 
   // Fetch Data from API
@@ -72,7 +73,7 @@ const CSFScopeTable = () => {
     exitEditingMode();
   };
 
-  // **Layer 1: Subcategory Level with Filters**
+  // **Layer 1: Subcategory Level with Filtering**
   const subcategoryColumns = useMemo(() => [
     {
       accessorKey: "subcategoryName",
@@ -99,20 +100,6 @@ const CSFScopeTable = () => {
       filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitAbbr)))],
       Cell: ({ row }) => row.original.businessUnits.map((bu) => bu.businessUnitAbbr).join(", "),
     },
-    {
-      accessorKey: "businessUnitOwner",
-      header: "BU Owner",
-      filterVariant: "multi-select",
-      filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitOwner)))],
-      Cell: ({ row }) => row.original.businessUnits.map((bu) => bu.businessUnitOwner).join(", "),
-    },
-    {
-      accessorKey: "auditorIsInScope",
-      header: "In Scope?",
-      filterVariant: "multi-select",
-      filterSelectOptions: ["Yes", "No"],
-      Cell: ({ row }) => row.original.businessUnits.map((bu) => bu.auditorIsInScope).join(", "),
-    },
   ], [tableData]);
 
   // **Layer 2: Business Unit Level**
@@ -124,7 +111,7 @@ const CSFScopeTable = () => {
       Edit: ({ cell }) => (
         <Autocomplete
           multiple
-          options={[]} // Dynamically updated
+          options={[]} 
           defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
           onInputChange={async (event, newValue) => {
             const results = await fetchWorkerNames(newValue);
@@ -145,7 +132,7 @@ const CSFScopeTable = () => {
             const newValue = event.target.value;
             cell.setValue(newValue);
             if (newValue === "Yes") {
-              cell.row.getCell("auditorJustification").setValue(""); // Clear Justification if In Scope is Yes
+              cell.row.getCell("auditorJustification").setValue("");
             }
           }}
         >
@@ -154,16 +141,52 @@ const CSFScopeTable = () => {
         </TextField>
       ),
     },
+    {
+      accessorKey: "auditorJustification",
+      header: "Justification",
+      Edit: ({ cell, row }) => (
+        <TextField
+          value={cell.getValue() || ""}
+          onChange={(event) => cell.setValue(event.target.value)}
+          disabled={row.getValue("auditorIsInScope") !== "No"}
+        />
+      ),
+    },
+    {
+      accessorKey: "auditorProfileType",
+      header: "Profile Type",
+      Edit: ({ cell }) => (
+        <TextField
+          select
+          value={cell.getValue() || ""}
+          onChange={(event) => {
+            const newValue = event.target.value;
+            cell.setValue(newValue);
+            if (!["Consumer", "Both"].includes(newValue)) {
+              cell.row.getCell("auditorConsumingFromBusinessUnit").setValue("");
+            }
+          }}
+        >
+          {ProfileTypeOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+      ),
+    },
   ], []);
 
   return (
     <MaterialReactTable
       columns={subcategoryColumns}
-      data={tableData}
+      data={tableData.filter((subcat) =>
+        selectedBU.length === 0 || subcat.businessUnits.some((bu) => selectedBU.includes(bu.businessUnitAbbr))
+      )}
       enableEditing
       editDisplayMode="row"
       enableColumnFilters
-      muiTableContainerProps={{ sx: { overflowX: "auto" } }} 
+      muiTableContainerProps={{ sx: { overflowX: "auto" }}}
       onEditingRowSave={handleSaveRow}
       renderDetailPanel={({ row }) => (
         <MaterialReactTable
@@ -172,7 +195,7 @@ const CSFScopeTable = () => {
           enableEditing
           editDisplayMode="row"
           enableColumnFilters
-          muiTableContainerProps={{ sx: { overflowX: "auto" } }}
+          muiTableContainerProps={{ sx: { overflowX: "auto" }}}
           renderDetailPanel={() => (
             <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
               <Typography variant="h6">Profile Type Definitions</Typography>
