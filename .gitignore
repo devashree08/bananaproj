@@ -9,7 +9,7 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
-  const [selectedBU, setSelectedBU] = useState([]); 
+  const [selectedBU, setSelectedBU] = useState([]);
   const [selectedBUOwner, setSelectedBUOwner] = useState([]);
   const [selectedInScope, setSelectedInScope] = useState([]);
 
@@ -41,40 +41,7 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // Fetch Worker Names API
-  const fetchWorkerNames = async (inputValue) => {
-    if (!inputValue.includes(" ")) return [];
-    const [firstName, lastName] = inputValue.split(" ");
-    
-    try {
-      const response = await axios.get(`/api/GetWorkerName`, {
-        params: { FirstName: firstName, LastName: lastName }
-      });
-      return response.data.map(worker => ({
-        label: `${worker.Namefull} (${worker.JobTitle})`,
-        value: worker.Namefull,
-      }));
-    } catch (error) {
-      console.error("Error fetching worker names:", error);
-      return [];
-    }
-  };
-
-  // Handle Row Save
-  const handleSaveRow = ({ row, values, exitEditingMode }) => {
-    const updatedData = [...tableData];
-    const subcategoryIndex = updatedData.findIndex(
-      (subcategory) => subcategory.subcategoryId === row.original.subcategoryId
-    );
-    const businessUnitIndex = updatedData[subcategoryIndex].businessUnits.findIndex(
-      (bu) => bu.businessUnitAbbr === row.original.businessUnitAbbr
-    );
-    updatedData[subcategoryIndex].businessUnits[businessUnitIndex] = values;
-    setTableData(updatedData);
-    exitEditingMode();
-  };
-
-  // **L1: Subcategory Level (FILTERS ONLY, NO EDITING)**
+  // **L1: Subcategory Level (FILTERS WORKING)**
   const subcategoryColumns = useMemo(() => [
     { accessorKey: "subcategoryName", header: "Subcategory", size: 120 },
     {
@@ -93,53 +60,40 @@ const CSFScopeTable = () => {
       header: "BU",
       filterVariant: "multi-select",
       filterSelectOptions: BusinessUnitOptions,
+      accessorFn: (row) => row.businessUnits.map((bu) => bu.businessUnitAbbr).join(", "),
+      filterFn: (row, filterValue) => row.original.businessUnits.some((bu) => filterValue.includes(bu.businessUnitAbbr)),
     },
     {
       accessorKey: "businessUnitOwner",
       header: "BU Owner",
       filterVariant: "multi-select",
       filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitOwner)))],
+      accessorFn: (row) => row.businessUnits.map((bu) => bu.businessUnitOwner).join(", "),
+      filterFn: (row, filterValue) => row.original.businessUnits.some((bu) => filterValue.includes(bu.businessUnitOwner)),
     },
     {
       accessorKey: "auditorIsInScope",
       header: "In Scope?",
       filterVariant: "multi-select",
       filterSelectOptions: ["Yes", "No"],
+      accessorFn: (row) => row.businessUnits.map((bu) => bu.auditorIsInScope).join(", "),
+      filterFn: (row, filterValue) => row.original.businessUnits.some((bu) => filterValue.includes(bu.auditorIsInScope)),
     },
   ], [tableData]);
 
-  // **L2: Business Unit Level (EDITABLE)**
+  // **L2: Business Unit Level (FULLY EDITABLE)**
   const businessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
+    { accessorKey: "businessUnitOwner", header: "BU Owner" },
+    { accessorKey: "auditorIsInScope", header: "In Scope?" },
     {
-      accessorKey: "businessUnitOwner",
-      header: "BU Owner",
-      Edit: ({ cell }) => (
-        <Autocomplete
-          multiple
-          options={[]} 
-          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
-          onInputChange={async (event, newValue) => {
-            const results = await fetchWorkerNames(newValue);
-            cell.setValue(results.map(res => res.value).join(", "));
-          }}
-          renderInput={(params) => <TextField {...params} label="Search Owners (First Last)" />}
-        />
-      ),
-    },
-    {
-      accessorKey: "auditorSubcatCustodian",
-      header: "Auditor Custodian",
-      Edit: ({ cell }) => (
-        <Autocomplete
-          multiple
-          options={[]} 
-          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
-          onInputChange={async (event, newValue) => {
-            const results = await fetchWorkerNames(newValue);
-            cell.setValue(results.map(res => res.value).join(", "));
-          }}
-          renderInput={(params) => <TextField {...params} label="Search Custodians (First Last)" />}
+      accessorKey: "auditorJustification",
+      header: "Justification",
+      Edit: ({ cell, row }) => (
+        <TextField
+          value={cell.getValue() || ""}
+          onChange={(event) => cell.setValue(event.target.value)}
+          disabled={row.getValue("auditorIsInScope") !== "No"}
         />
       ),
     },
@@ -190,13 +144,18 @@ const CSFScopeTable = () => {
     <MaterialReactTable
       columns={subcategoryColumns}
       data={tableData}
-      enableEditing={false}
+      enableEditing={false} // L1 is NOT editable
       renderDetailPanel={({ row }) => (
         <MaterialReactTable
           columns={businessUnitColumns}
-          data={row.original.businessUnits}
+          data={row.original.businessUnits.filter((bu) =>
+            (selectedBU.length === 0 || selectedBU.includes(bu.businessUnitAbbr)) &&
+            (selectedBUOwner.length === 0 || selectedBUOwner.includes(bu.businessUnitOwner)) &&
+            (selectedInScope.length === 0 || selectedInScope.includes(bu.auditorIsInScope))
+          )}
           enableEditing
           editDisplayMode="row"
+          muiTableContainerProps={{ sx: { overflowX: "auto" }}}
           renderDetailPanel={() => (
             <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
               <Typography variant="h6">Profile Type Definitions</Typography>
