@@ -6,7 +6,7 @@ import axios from "axios";
 // Profile Type & Business Unit Options
 const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
 const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
-const MaturityProjectOptions = ["Increase", "Decrease", "Maintain"];
+const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
@@ -39,9 +39,15 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // **L1: Subcategory Level (Filtering Enabled)**
+  // **L1: Subcategory Level (Filters Always Enabled)**
   const subcategoryColumns = useMemo(() => [
-    { accessorKey: "subcategoryName", header: "Subcategory", size: 120, filterVariant: "text" },
+    { 
+      accessorKey: "subcategoryName", 
+      header: "Subcategory", 
+      size: 120, 
+      filterVariant: "multi-select", // Multi-select filter enabled
+      filterSelectOptions: [...new Set(tableData.map(row => row.subcategoryName))],
+    },
     {
       accessorKey: "subcategoryDescription",
       header: "Description",
@@ -54,9 +60,9 @@ const CSFScopeTable = () => {
       ),
     },
     { accessorKey: "relatedSubcategories", header: "Related Subcategories", filterVariant: "text" },
-  ], []);
+  ], [tableData]);
 
-  // **L2: Business Unit Level (FULLY EDITABLE)**
+  // **L2: Business Unit Level (Fully Editable)**
   const businessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
     {
@@ -148,12 +154,8 @@ const CSFScopeTable = () => {
     {
       accessorKey: "auditorConsumingFromBusinessUnit",
       header: "Consuming From BU",
-      Edit: ({ cell, row }) => (
-        <TextField
-          select
-          value={cell.getValue() || ""}
-          onChange={(event) => cell.setValue(event.target.value)}
-        >
+      Edit: ({ cell }) => (
+        <TextField select value={cell.getValue() || ""} onChange={(event) => cell.setValue(event.target.value)}>
           {BusinessUnitOptions.map((option) => (
             <MenuItem key={option} value={option}>
               {option}
@@ -174,11 +176,11 @@ const CSFScopeTable = () => {
       ),
     },
     {
-      accessorKey: "maturityProject",
-      header: "Maturity Project",
+      accessorKey: "maturityProjection",
+      header: "Maturity Projection",
       Edit: ({ cell }) => (
         <TextField select value={cell.getValue() || ""} onChange={(event) => cell.setValue(event.target.value)}>
-          {MaturityProjectOptions.map((option) => (
+          {MaturityProjectionOptions.map((option) => (
             <MenuItem key={option} value={option}>
               {option}
             </MenuItem>
