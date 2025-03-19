@@ -1,37 +1,6 @@
-import React from "react";
-import { TextField, MenuItem } from "@mui/material";
-
-      accessorKey: 'auditorIsInScope',
-      header: 'In Scope?',
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          value={cell.getValue() || ''}
-          onChange={(event) => {
-            const newValue = event.target.value;
-            cell.setValue(newValue);
-          }}
-        >
-          <MenuItem value="Yes">Yes</MenuItem>
-          <MenuItem value="No">No</MenuItem>
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: 'auditorJustification',
-      header: 'Justification',
-      Edit: ({ cell, row }) => (
-        <TextField
-          value={cell.getValue() || ''}
-          onChange={(event) => cell.setValue(event.target.value)}
-          disabled={row.original.auditorIsInScope !== 'No'}
-        />
-      ),
-    },
-
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
-import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
+import { MenuItem, TextField, Autocomplete, Box, Typography, Button, Stack } from "@mui/material";
 import axios from "axios";
 
 // Profile Type & Business Unit Options
@@ -40,6 +9,7 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
+  const [editingRow, setEditingRow] = useState(null);
 
   // Fetch Data from API
   useEffect(() => {
@@ -69,38 +39,47 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // Handle Save Edits (Instantaneous Updates)
-  const handleSaveCell = (cell, value) => {
-    setTableData((prevData) =>
-      prevData.map((subcategory) => ({
-        ...subcategory,
-        businessUnits: subcategory.businessUnits.map((bu) =>
-          bu.businessUnitAbbr === cell.row.original.businessUnitAbbr
-            ? {
-                ...bu,
-                [cell.column.id]: value,
-                ...(cell.column.id === "auditorProfileType" &&
-                !["Consumer", "Both"].includes(value)
-                  ? { auditorConsumingFromBusinessUnit: "" }
-                  : {}),
-                ...(cell.column.id === "auditorIsInScope" && value === "Yes"
-                  ? { auditorJustification: "" }
-                  : {}),
-              }
-            : bu
-        ),
-      }))
-    );
+  // Fetch Worker Names API
+  const fetchWorkerNames = async (inputValue) => {
+    if (!inputValue.includes(" ")) return [];
+    const [firstName, lastName] = inputValue.split(" ");
+    
+    try {
+      const response = await axios.get(`/api/GetWorkerName`, {
+        params: { FirstName: firstName, LastName: lastName }
+      });
+      return response.data.map(worker => ({
+        label: `${worker.Namefull} (${worker.JobTitle})`,
+        value: worker.Namefull,
+      }));
+    } catch (error) {
+      console.error("Error fetching worker names:", error);
+      return [];
+    }
   };
 
-  // **Layer 1: Subcategory Level (Multi-Select Filtering)**
-  const SubcategoryColumns = useMemo(() => [
+  // Handle Row Save
+  const handleSaveRow = ({ row, values, exitEditingMode }) => {
+    const updatedData = [...tableData];
+    const subcategoryIndex = updatedData.findIndex(
+      (subcategory) => subcategory.subcategoryId === row.original.subcategoryId
+    );
+    const businessUnitIndex = updatedData[subcategoryIndex].businessUnits.findIndex(
+      (bu) => bu.businessUnitAbbr === row.original.businessUnitAbbr
+    );
+    updatedData[subcategoryIndex].businessUnits[businessUnitIndex] = values;
+    setTableData(updatedData);
+    exitEditingMode();
+  };
+
+  // **Layer 1: Subcategory Level with Filters**
+  const subcategoryColumns = useMemo(() => [
     {
       accessorKey: "subcategoryName",
       header: "Subcategory",
       size: 120,
       filterVariant: "multi-select",
-      filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))], // Unique Subcategories
+      filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))],
     },
     {
       accessorKey: "subcategoryDescription",
@@ -113,10 +92,31 @@ const CSFScopeTable = () => {
       ),
     },
     { accessorKey: "relatedSubcategories", header: "Related Subcategories" },
+    {
+      accessorKey: "businessUnitAbbr",
+      header: "BU",
+      filterVariant: "multi-select",
+      filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitAbbr)))],
+      Cell: ({ row }) => row.original.businessUnits.map((bu) => bu.businessUnitAbbr).join(", "),
+    },
+    {
+      accessorKey: "businessUnitOwner",
+      header: "BU Owner",
+      filterVariant: "multi-select",
+      filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitOwner)))],
+      Cell: ({ row }) => row.original.businessUnits.map((bu) => bu.businessUnitOwner).join(", "),
+    },
+    {
+      accessorKey: "auditorIsInScope",
+      header: "In Scope?",
+      filterVariant: "multi-select",
+      filterSelectOptions: ["Yes", "No"],
+      Cell: ({ row }) => row.original.businessUnits.map((bu) => bu.auditorIsInScope).join(", "),
+    },
   ], [tableData]);
 
-  // **Layer 2: Business Unit Level (Inside MRT Modal)**
-  const BusinessUnitColumns = useMemo(() => [
+  // **Layer 2: Business Unit Level**
+  const businessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
     {
       accessorKey: "businessUnitOwner",
@@ -124,15 +124,13 @@ const CSFScopeTable = () => {
       Edit: ({ cell }) => (
         <Autocomplete
           multiple
-          options={[]} // Updated dynamically
+          options={[]} // Dynamically updated
           defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
           onInputChange={async (event, newValue) => {
-            if (newValue) {
-              const workerNames = await fetchWorkerNames(newValue);
-              handleSaveCell(cell, workerNames.join(", "));
-            }
+            const results = await fetchWorkerNames(newValue);
+            cell.setValue(results.map(res => res.value).join(", "));
           }}
-          renderInput={(params) => <TextField {...params} label="Search Owners" />}
+          renderInput={(params) => <TextField {...params} label="Search Owners (First Last)" />}
         />
       ),
     },
@@ -142,57 +140,17 @@ const CSFScopeTable = () => {
       Edit: ({ cell }) => (
         <TextField
           select
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
+          value={cell.getValue() || ""}
+          onChange={(event) => {
+            const newValue = event.target.value;
+            cell.setValue(newValue);
+            if (newValue === "Yes") {
+              cell.row.getCell("auditorJustification").setValue(""); // Clear Justification if In Scope is Yes
+            }
+          }}
         >
           <MenuItem value="Yes">Yes</MenuItem>
           <MenuItem value="No">No</MenuItem>
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: "auditorJustification",
-      header: "Justification",
-      Edit: ({ cell }) => (
-        <TextField
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
-          disabled={cell.row.original.auditorIsInScope !== "No"}
-        />
-      ),
-    },
-    {
-      accessorKey: "auditorProfileType",
-      header: "Profile Type",
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
-        >
-          {ProfileTypeOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: "auditorConsumingFromBusinessUnit",
-      header: "Consuming From BU",
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          defaultValue={cell.getValue() || ""}
-          onChange={(event) => handleSaveCell(cell, event.target.value)}
-          disabled={!["Consumer", "Both"].includes(cell.row.original.auditorProfileType)}
-        >
-          {BusinessUnitOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
         </TextField>
       ),
     },
@@ -200,21 +158,21 @@ const CSFScopeTable = () => {
 
   return (
     <MaterialReactTable
-      columns={SubcategoryColumns}
+      columns={subcategoryColumns}
       data={tableData}
-      enableExpanding
       enableEditing
-      editingMode="modal"
-      muiTableBodyCellEditTextFieldProps={{ sx: { minWidth: "600px" } }} // Expanded Modal Width
+      editDisplayMode="row"
       enableColumnFilters
-      enableHorizontalScroll
+      muiTableContainerProps={{ sx: { overflowX: "auto" } }} 
+      onEditingRowSave={handleSaveRow}
       renderDetailPanel={({ row }) => (
         <MaterialReactTable
-          columns={BusinessUnitColumns}
+          columns={businessUnitColumns}
           data={row.original.businessUnits}
-          enableExpanding
           enableEditing
-          editingMode="modal"
+          editDisplayMode="row"
+          enableColumnFilters
+          muiTableContainerProps={{ sx: { overflowX: "auto" } }}
           renderDetailPanel={() => (
             <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
               <Typography variant="h6">Profile Type Definitions</Typography>
