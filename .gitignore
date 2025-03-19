@@ -9,8 +9,9 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
-  const [selectedBU, setSelectedBU] = useState([]); // For BU filtering at L1
-  const [editingRow, setEditingRow] = useState(null);
+  const [selectedBU, setSelectedBU] = useState([]); // For filtering at L1
+  const [selectedBUOwner, setSelectedBUOwner] = useState([]);
+  const [selectedInScope, setSelectedInScope] = useState([]);
 
   // Fetch Data from API
   useEffect(() => {
@@ -97,8 +98,19 @@ const CSFScopeTable = () => {
       accessorKey: "businessUnitAbbr",
       header: "BU",
       filterVariant: "multi-select",
-      filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitAbbr)))],
-      Cell: ({ row }) => row.original.businessUnits.map((bu) => bu.businessUnitAbbr).join(", "),
+      filterSelectOptions: BusinessUnitOptions,
+    },
+    {
+      accessorKey: "businessUnitOwner",
+      header: "BU Owner",
+      filterVariant: "multi-select",
+      filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitOwner)))],
+    },
+    {
+      accessorKey: "auditorIsInScope",
+      header: "In Scope?",
+      filterVariant: "multi-select",
+      filterSelectOptions: ["Yes", "No"],
     },
   ], [tableData]);
 
@@ -122,33 +134,18 @@ const CSFScopeTable = () => {
       ),
     },
     {
-      accessorKey: "auditorIsInScope",
-      header: "In Scope?",
+      accessorKey: "auditorSubcatCustodian",
+      header: "Auditor Custodian",
       Edit: ({ cell }) => (
-        <TextField
-          select
-          value={cell.getValue() || ""}
-          onChange={(event) => {
-            const newValue = event.target.value;
-            cell.setValue(newValue);
-            if (newValue === "Yes") {
-              cell.row.getCell("auditorJustification").setValue("");
-            }
+        <Autocomplete
+          multiple
+          options={[]} 
+          defaultValue={cell.getValue() ? cell.getValue().split(", ") : []}
+          onInputChange={async (event, newValue) => {
+            const results = await fetchWorkerNames(newValue);
+            cell.setValue(results.map(res => res.value).join(", "));
           }}
-        >
-          <MenuItem value="Yes">Yes</MenuItem>
-          <MenuItem value="No">No</MenuItem>
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: "auditorJustification",
-      header: "Justification",
-      Edit: ({ cell, row }) => (
-        <TextField
-          value={cell.getValue() || ""}
-          onChange={(event) => cell.setValue(event.target.value)}
-          disabled={row.getValue("auditorIsInScope") !== "No"}
+          renderInput={(params) => <TextField {...params} label="Search Custodians (First Last)" />}
         />
       ),
     },
@@ -175,38 +172,40 @@ const CSFScopeTable = () => {
         </TextField>
       ),
     },
+    {
+      accessorKey: "auditorConsumingFromBusinessUnit",
+      header: "Consuming From BU",
+      Edit: ({ cell, row }) => (
+        <TextField
+          select
+          value={cell.getValue() || ""}
+          onChange={(event) => cell.setValue(event.target.value)}
+          disabled={!["Consumer", "Both"].includes(row.getValue("auditorProfileType"))}
+        >
+          {BusinessUnitOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+      ),
+    },
   ], []);
 
   return (
     <MaterialReactTable
       columns={subcategoryColumns}
-      data={tableData.filter((subcat) =>
-        selectedBU.length === 0 || subcat.businessUnits.some((bu) => selectedBU.includes(bu.businessUnitAbbr))
+      data={tableData.filter(subcat => 
+        (selectedBU.length === 0 || subcat.businessUnits.some(bu => selectedBU.includes(bu.businessUnitAbbr))) &&
+        (selectedBUOwner.length === 0 || subcat.businessUnits.some(bu => selectedBUOwner.includes(bu.businessUnitOwner))) &&
+        (selectedInScope.length === 0 || subcat.businessUnits.some(bu => selectedInScope.includes(bu.auditorIsInScope)))
       )}
       enableEditing
       editDisplayMode="row"
-      enableColumnFilters
-      muiTableContainerProps={{ sx: { overflowX: "auto" }}}
-      onEditingRowSave={handleSaveRow}
       renderDetailPanel={({ row }) => (
         <MaterialReactTable
           columns={businessUnitColumns}
-          data={row.original.businessUnits}
-          enableEditing
-          editDisplayMode="row"
-          enableColumnFilters
-          muiTableContainerProps={{ sx: { overflowX: "auto" }}}
-          renderDetailPanel={() => (
-            <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
-              <Typography variant="h6">Profile Type Definitions</Typography>
-              <ul>
-                <li><strong>Provider:</strong> Supplies services to other BUs.</li>
-                <li><strong>Consumer:</strong> Receives services from other BUs.</li>
-                <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
-                <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
-              </ul>
-            </Box>
-          )}
+          data={row.original.businessUnits.filter(bu => selectedBU.length === 0 || selectedBU.includes(bu.businessUnitAbbr))}
         />
       )}
     />
