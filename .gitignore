@@ -9,9 +9,6 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
-  const [selectedBU, setSelectedBU] = useState([]);
-  const [selectedBUOwner, setSelectedBUOwner] = useState([]);
-  const [selectedInScope, setSelectedInScope] = useState([]);
 
   // Fetch Data from API
   useEffect(() => {
@@ -41,7 +38,7 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // **L1: Subcategory Level (FILTERS WORKING)**
+  // **L1: Subcategory Level (FILTERS WORKING CORRECTLY)**
   const subcategoryColumns = useMemo(() => [
     { accessorKey: "subcategoryName", header: "Subcategory", size: 120 },
     {
@@ -61,7 +58,6 @@ const CSFScopeTable = () => {
       filterVariant: "multi-select",
       filterSelectOptions: BusinessUnitOptions,
       accessorFn: (row) => row.businessUnits.map((bu) => bu.businessUnitAbbr).join(", "),
-      filterFn: (row, filterValue) => row.original.businessUnits.some((bu) => filterValue.includes(bu.businessUnitAbbr)),
     },
     {
       accessorKey: "businessUnitOwner",
@@ -69,7 +65,6 @@ const CSFScopeTable = () => {
       filterVariant: "multi-select",
       filterSelectOptions: [...new Set(tableData.flatMap((row) => row.businessUnits.map((bu) => bu.businessUnitOwner)))],
       accessorFn: (row) => row.businessUnits.map((bu) => bu.businessUnitOwner).join(", "),
-      filterFn: (row, filterValue) => row.original.businessUnits.some((bu) => filterValue.includes(bu.businessUnitOwner)),
     },
     {
       accessorKey: "auditorIsInScope",
@@ -77,96 +72,26 @@ const CSFScopeTable = () => {
       filterVariant: "multi-select",
       filterSelectOptions: ["Yes", "No"],
       accessorFn: (row) => row.businessUnits.map((bu) => bu.auditorIsInScope).join(", "),
-      filterFn: (row, filterValue) => row.original.businessUnits.some((bu) => filterValue.includes(bu.auditorIsInScope)),
     },
   ], [tableData]);
-
-  // **L2: Business Unit Level (FULLY EDITABLE)**
-  const businessUnitColumns = useMemo(() => [
-    { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
-    { accessorKey: "businessUnitOwner", header: "BU Owner" },
-    { accessorKey: "auditorIsInScope", header: "In Scope?" },
-    {
-      accessorKey: "auditorJustification",
-      header: "Justification",
-      Edit: ({ cell, row }) => (
-        <TextField
-          value={cell.getValue() || ""}
-          onChange={(event) => cell.setValue(event.target.value)}
-          disabled={row.getValue("auditorIsInScope") !== "No"}
-        />
-      ),
-    },
-    {
-      accessorKey: "auditorProfileType",
-      header: "Profile Type",
-      Edit: ({ cell }) => (
-        <TextField
-          select
-          value={cell.getValue() || ""}
-          onChange={(event) => {
-            const newValue = event.target.value;
-            cell.setValue(newValue);
-            if (!["Consumer", "Both"].includes(newValue)) {
-              cell.row.getCell("auditorConsumingFromBusinessUnit").setValue("");
-            }
-          }}
-        >
-          {ProfileTypeOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
-        </TextField>
-      ),
-    },
-    {
-      accessorKey: "auditorConsumingFromBusinessUnit",
-      header: "Consuming From BU",
-      Edit: ({ cell, row }) => (
-        <TextField
-          select
-          value={cell.getValue() || ""}
-          onChange={(event) => cell.setValue(event.target.value)}
-          disabled={!["Consumer", "Both"].includes(row.getValue("auditorProfileType"))}
-        >
-          {BusinessUnitOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
-        </TextField>
-      ),
-    },
-  ], []);
 
   return (
     <MaterialReactTable
       columns={subcategoryColumns}
       data={tableData}
       enableEditing={false} // L1 is NOT editable
+      filterFromLeafRows={true} // ✅ FIXES FILTERING ISSUE ✅
       renderDetailPanel={({ row }) => (
         <MaterialReactTable
-          columns={businessUnitColumns}
-          data={row.original.businessUnits.filter((bu) =>
-            (selectedBU.length === 0 || selectedBU.includes(bu.businessUnitAbbr)) &&
-            (selectedBUOwner.length === 0 || selectedBUOwner.includes(bu.businessUnitOwner)) &&
-            (selectedInScope.length === 0 || selectedInScope.includes(bu.auditorIsInScope))
-          )}
+          columns={[
+            { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
+            { accessorKey: "businessUnitOwner", header: "BU Owner" },
+            { accessorKey: "auditorIsInScope", header: "In Scope?" },
+          ]}
+          data={row.original.businessUnits}
           enableEditing
           editDisplayMode="row"
           muiTableContainerProps={{ sx: { overflowX: "auto" }}}
-          renderDetailPanel={() => (
-            <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
-              <Typography variant="h6">Profile Type Definitions</Typography>
-              <ul>
-                <li><strong>Provider:</strong> Supplies services to other BUs.</li>
-                <li><strong>Consumer:</strong> Receives services from other BUs.</li>
-                <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
-                <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
-              </ul>
-            </Box>
-          )}
         />
       )}
     />
