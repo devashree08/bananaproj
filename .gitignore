@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
-import { MenuItem, TextField, Autocomplete, Box, Typography, Button, Stack } from "@mui/material";
+import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
 import axios from "axios";
 
 // Profile Type & Business Unit Options
@@ -9,7 +9,7 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C"];
 
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
-  const [selectedBU, setSelectedBU] = useState([]); // For filtering at L1
+  const [selectedBU, setSelectedBU] = useState([]); 
   const [selectedBUOwner, setSelectedBUOwner] = useState([]);
   const [selectedInScope, setSelectedInScope] = useState([]);
 
@@ -74,15 +74,9 @@ const CSFScopeTable = () => {
     exitEditingMode();
   };
 
-  // **Layer 1: Subcategory Level with Filtering**
+  // **L1: Subcategory Level (FILTERS ONLY, NO EDITING)**
   const subcategoryColumns = useMemo(() => [
-    {
-      accessorKey: "subcategoryName",
-      header: "Subcategory",
-      size: 120,
-      filterVariant: "multi-select",
-      filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))],
-    },
+    { accessorKey: "subcategoryName", header: "Subcategory", size: 120 },
     {
       accessorKey: "subcategoryDescription",
       header: "Description",
@@ -114,7 +108,7 @@ const CSFScopeTable = () => {
     },
   ], [tableData]);
 
-  // **Layer 2: Business Unit Level**
+  // **L2: Business Unit Level (EDITABLE)**
   const businessUnitColumns = useMemo(() => [
     { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
     {
@@ -195,17 +189,25 @@ const CSFScopeTable = () => {
   return (
     <MaterialReactTable
       columns={subcategoryColumns}
-      data={tableData.filter(subcat => 
-        (selectedBU.length === 0 || subcat.businessUnits.some(bu => selectedBU.includes(bu.businessUnitAbbr))) &&
-        (selectedBUOwner.length === 0 || subcat.businessUnits.some(bu => selectedBUOwner.includes(bu.businessUnitOwner))) &&
-        (selectedInScope.length === 0 || subcat.businessUnits.some(bu => selectedInScope.includes(bu.auditorIsInScope)))
-      )}
-      enableEditing
-      editDisplayMode="row"
+      data={tableData}
+      enableEditing={false}
       renderDetailPanel={({ row }) => (
         <MaterialReactTable
           columns={businessUnitColumns}
-          data={row.original.businessUnits.filter(bu => selectedBU.length === 0 || selectedBU.includes(bu.businessUnitAbbr))}
+          data={row.original.businessUnits}
+          enableEditing
+          editDisplayMode="row"
+          renderDetailPanel={() => (
+            <Box p={2} sx={{ backgroundColor: "#f4f4f4", borderRadius: "8px", marginTop: "10px" }}>
+              <Typography variant="h6">Profile Type Definitions</Typography>
+              <ul>
+                <li><strong>Provider:</strong> Supplies services to other BUs.</li>
+                <li><strong>Consumer:</strong> Receives services from other BUs.</li>
+                <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
+                <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
+              </ul>
+            </Box>
+          )}
         />
       )}
     />
