@@ -1,3 +1,26 @@
+const handleSaveCell = (cell, value) => {
+    setTableData((prevData) =>
+      prevData.map((subcategory) => ({
+        ...subcategory,
+        businessUnits: subcategory.businessUnits.map((bu) =>
+          bu.businessUnitAbbr === cell.row.original.businessUnitAbbr
+            ? {
+                ...bu,
+                [cell.column.id]: value,
+                ...(cell.column.id === "auditorProfileType" &&
+                !["Consumer", "Both"].includes(value)
+                  ? { auditorConsumingFromBusinessUnit: "" }
+                  : {}),
+                ...(cell.column.id === "auditorIsInScope" && value === "Yes"
+                  ? { auditorJustification: "" }
+                  : {}),
+              }
+            : bu
+        ),
+      }))
+    );
+  };
+
 import React, { useEffect, useState, useMemo } from "react";
 import MaterialReactTable from "material-react-table";
 import { MenuItem, TextField, Autocomplete, Box, Typography } from "@mui/material";
