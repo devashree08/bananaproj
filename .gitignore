@@ -1,58 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Typography,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
-  Box,
-  Snackbar,
-  Alert,
-  TablePagination,
-  Collapse
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography, Snackbar, Alert, Chip } from '@mui/material';
 import axios from 'axios';
 
-// ---------------- InfoPanel (Level 3) ----------------
-// This component displays the profile type definitions.
-// Wrapped in React.memo to avoid unnecessary re-renders.
-const InfoPanel = React.memo(({ profileType }) => {
-  const definitions = {
-    Provider: "Supplies services to other BUs.",
-    Consumer: "Receives services from other BUs.",
-    Both: "Acts as both Provider & Consumer.",
-    Inheritor: "Inherits control from another BU."
-  };
-
-  return (
-    <Box sx={{ p: 1, backgroundColor: '#f4f4f4', borderRadius: 1, mt: 1 }}>
-      <Typography variant="h6">Profile Type Definitions</Typography>
-      <ul style={{ margin: 0, paddingLeft: 16 }}>
-        <li><strong>Provider:</strong> {definitions.Provider}</li>
-        <li><strong>Consumer:</strong> {definitions.Consumer}</li>
-        <li><strong>Both:</strong> {definitions.Both}</li>
-        <li><strong>Inheritor:</strong> {definitions.Inheritor}</li>
-      </ul>
-    </Box>
-  );
-});
-
-// ---------------- WorkerSearchModal ----------------
-// Modal that allows users to search for workers by first and last name,
-// then select one or more names. When "Done" is clicked, the selected names
-// are returned as a comma-separated string.
 const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -60,6 +9,16 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(initialValue ? initialValue.split(', ') : []);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
+
+  // Clear fields when modal opens
+  useEffect(() => {
+    if (open) {
+      setFirstName('');
+      setLastName('');
+      setResults([]);
+      setSelected(initialValue ? initialValue.split(', ') : []);
+    }
+  }, [open, initialValue]);
 
   const searchWorkers = async () => {
     if (!firstName.trim() || !lastName.trim()) {
@@ -117,6 +76,19 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
         <Button onClick={searchWorkers} variant="contained" disabled={loading}>
           {loading ? 'Searching...' : 'Search'}
         </Button>
+        {/* Show selected workers as Chips */}
+        {selected.length > 0 && (
+          <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {selected.map(workerName => (
+              <Chip 
+                key={workerName} 
+                label={workerName} 
+                onDelete={() => setSelected(selected.filter(n => n !== workerName))}
+              />
+            ))}
+          </Box>
+        )}
+        {/* Show search results */}
         {results.length > 0 && (
           <Box mt={2}>
             <Typography variant="subtitle1">Select Worker(s):</Typography>
@@ -128,7 +100,12 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
                 onClick={() => toggleSelect(worker.NameFull)}
                 sx={{ cursor: 'pointer', py: 0.5 }}
               >
-                <input type="checkbox" checked={selected.includes(worker.NameFull)} readOnly style={{ marginRight: 8 }} />
+                <input 
+                  type="checkbox" 
+                  checked={selected.includes(worker.NameFull)} 
+                  readOnly 
+                  style={{ marginRight: 8 }} 
+                />
                 <Typography>
                   {worker.NameFull} - {worker.JobTitle} (Supervisor: {worker.SupervisorFullName})
                 </Typography>
@@ -154,338 +131,4 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
   );
 };
 
-// ---------------- EditBusinessUnitModal ----------------
-// Modal form for editing a single Business Unit (Level 2).
-// It displays all editable fields and uses WorkerSearchModal for BU Owner and Auditor Custodian.
-const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
-  const [form, setForm] = useState({ ...businessUnit });
-  const [workerModalOpen, setWorkerModalOpen] = useState(false);
-  const [editingField, setEditingField] = useState('');
-
-  useEffect(() => {
-    setForm({ ...businessUnit });
-  }, [businessUnit]);
-
-  const handleFieldChange = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const openWorkerModal = (field) => {
-    setEditingField(field);
-    setWorkerModalOpen(true);
-  };
-
-  const handleWorkerSelect = (value) => {
-    handleFieldChange(editingField, value);
-  };
-
-  const handleSave = () => {
-    onSave(form);
-    onClose();
-  };
-
-  return (
-    <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-        <DialogTitle>Edit Business Unit</DialogTitle>
-        <DialogContent>
-          <TextField
-            label="BU (Read Only)"
-            value={form.businessUnitAbbr}
-            fullWidth
-            margin="normal"
-            disabled
-          />
-          <Box display="flex" alignItems="center" mb={2}>
-            <TextField
-              label="BU Owner"
-              value={form.businessUnitOwner}
-              fullWidth
-              margin="normal"
-              disabled
-            />
-            <Button onClick={() => openWorkerModal('businessUnitOwner')} variant="outlined" sx={{ ml: 1 }}>
-              Edit
-            </Button>
-          </Box>
-          <Box display="flex" alignItems="center" mb={2}>
-            <TextField
-              label="Auditor Custodian"
-              value={form.auditorSubcatCustodian}
-              fullWidth
-              margin="normal"
-              disabled
-            />
-            <Button onClick={() => openWorkerModal('auditorSubcatCustodian')} variant="outlined" sx={{ ml: 1 }}>
-              Edit
-            </Button>
-          </Box>
-          <TextField
-            label="In Scope?"
-            value={form.auditorIsInScope}
-            onChange={e => handleFieldChange('auditorIsInScope', e.target.value)}
-            select
-            fullWidth
-            margin="normal"
-          >
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </TextField>
-          <TextField
-            label="Justification"
-            value={form.auditorJustification}
-            onChange={e => handleFieldChange('auditorJustification', e.target.value)}
-            fullWidth
-            margin="normal"
-            disabled={form.auditorIsInScope === 'Yes'}
-          />
-          <TextField
-            label="Maturity Projection"
-            value={form.maturityProjection}
-            onChange={e => handleFieldChange('maturityProjection', e.target.value)}
-            select
-            fullWidth
-            margin="normal"
-          >
-            {["Increase", "Decrease", "Maintain"].map(option => (
-              <MenuItem key={option} value={option}>{option}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label="Profile Type"
-            value={form.auditorProfileType}
-            onChange={e => handleFieldChange('auditorProfileType', e.target.value)}
-            select
-            fullWidth
-            margin="normal"
-          >
-            {["Provider", "Consumer", "Both", "Inheritor"].map(option => (
-              <MenuItem key={option} value={option}>{option}</MenuItem>
-            ))}
-          </TextField>
-          {/* Level 3 Info Panel */}
-          <Collapse in={true} timeout="auto" unmountOnExit>
-            <Box sx={{ p: 1, backgroundColor: '#f4f4f4', borderRadius: 1, mt: 1 }}>
-              <Typography variant="h6">Profile Type Definitions</Typography>
-              <ul style={{ margin: 0, paddingLeft: 16 }}>
-                <li><strong>Provider:</strong> Supplies services to other BUs.</li>
-                <li><strong>Consumer:</strong> Receives services from other BUs.</li>
-                <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
-                <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
-              </ul>
-            </Box>
-          </Collapse>
-          <TextField
-            label="Consuming From BU"
-            value={form.auditorConsumingFromBusinessUnit}
-            onChange={e => handleFieldChange('auditorConsumingFromBusinessUnit', e.target.value)}
-            select
-            fullWidth
-            margin="normal"
-          >
-            {["ABC", "UIO", "POA", "SKA-C", "Other"].map(option => (
-              <MenuItem key={option} value={option}>{option}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label="Department Name"
-            value={form.departmentName}
-            onChange={e => handleFieldChange('departmentName', e.target.value)}
-            fullWidth
-            margin="normal"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
-      <WorkerSearchModal 
-        open={workerModalOpen} 
-        onClose={() => setWorkerModalOpen(false)}
-        onSelect={handleWorkerSelect}
-        initialValue={form[editingField]}
-      />
-    </>
-  );
-};
-
-// ---------------- CSFScopeAccordion ----------------
-// Main component using MUI Accordions for Level 1.
-// It renders a header for Subcategory columns (side by side), paginates the master list,
-// and inside each Accordion displays a Table (Level 2) for Business Units.
-const CSFScopeAccordion = () => {
-  const [data, setData] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [editBU, setEditBU] = useState(null);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-
-  // Fetch and group ScopeData (Level 1)
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get('/api/ScopeData');
-        const grouped = {};
-        response.data.forEach(item => {
-          const subcatId = item.subcategoryId;
-          if (!grouped[subcatId]) {
-            grouped[subcatId] = {
-              subcategoryId: subcatId,
-              subcategoryName: item.subcategoryName,
-              subcategoryDescription: item.subcategoryDescription,
-              relatedSubcategories: item.relatedCsf1_1Subcategories,
-              businessUnits: []
-            };
-          }
-          // Deduplicate by businessUnitAbbr so each BU appears only once.
-          if (!grouped[subcatId].businessUnits.find(bu => bu.businessUnitAbbr === item.businessUnitAbbr)) {
-            grouped[subcatId].businessUnits.push(item);
-          }
-        });
-        setData(Object.values(grouped));
-      } catch (error) {
-        console.error('Error fetching scope data:', error);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // Pagination for Level 1
-  const paginatedData = data.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage);
-
-  const handleChangePage = (event, newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setCurrentPage(0);
-  };
-
-  const handleEditBU = (bu) => {
-    setEditBU(bu);
-    setEditModalOpen(true);
-  };
-
-  const handleSaveBU = (newData) => {
-    // Update only the BU that matches by businessUnitAbbr.
-    setData(prev => prev.map(subcat => ({
-      ...subcat,
-      businessUnits: subcat.businessUnits.map(bu =>
-        bu.businessUnitAbbr === newData.businessUnitAbbr ? newData : bu
-      )
-    })));
-    setEditModalOpen(false);
-  };
-
-  return (
-    <Box sx={{ m: 2 }}>
-      {/* Header for Level 1 */}
-      <Box display="flex" sx={{ borderBottom: '1px solid #ccc', mb: 2, p: 1 }}>
-        <Box flex={1}>
-          <Typography variant="subtitle1" fontWeight="bold">Subcategory Name</Typography>
-        </Box>
-        <Box flex={2}>
-          <Typography variant="subtitle1" fontWeight="bold">Description</Typography>
-        </Box>
-        <Box flex={1}>
-          <Typography variant="subtitle1" fontWeight="bold">Related CSF 1.1 Subcats</Typography>
-        </Box>
-      </Box>
-      {paginatedData.map(subcat => (
-        <Accordion key={subcat.subcategoryId}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box display="flex" width="100%">
-              <Box flex={1}>
-                <Typography variant="h6">{subcat.subcategoryName}</Typography>
-              </Box>
-              <Box flex={2}>
-                <Typography variant="body2">{subcat.subcategoryDescription}</Typography>
-              </Box>
-              <Box flex={1}>
-                <Typography variant="caption">{subcat.relatedSubcategories}</Typography>
-              </Box>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>BU</TableCell>
-                  <TableCell>BU Owner</TableCell>
-                  <TableCell>Auditor Custodian</TableCell>
-                  <TableCell>In Scope?</TableCell>
-                  <TableCell>Justification</TableCell>
-                  <TableCell>Maturity Projection</TableCell>
-                  <TableCell>Profile Type</TableCell>
-                  <TableCell>Consuming From BU</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Info</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {subcat.businessUnits.map(bu => (
-                  <React.Fragment key={bu.businessUnitAbbr}>
-                    <TableRow>
-                      <TableCell>{bu.businessUnitAbbr}</TableCell>
-                      <TableCell>{bu.businessUnitOwner}</TableCell>
-                      <TableCell>{bu.auditorSubcatCustodian}</TableCell>
-                      <TableCell>{bu.auditorIsInScope}</TableCell>
-                      <TableCell>{bu.auditorJustification}</TableCell>
-                      <TableCell>{bu.maturityProjection}</TableCell>
-                      <TableCell>{bu.auditorProfileType}</TableCell>
-                      <TableCell>{bu.auditorConsumingFromBusinessUnit}</TableCell>
-                      <TableCell>{bu.departmentName}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="text"
-                          size="small"
-                          onClick={() => { bu.showInfo = !bu.showInfo; setData([...data]); }}
-                        >
-                          {bu.showInfo ? "Hide Info" : "Show Info"}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <Button onClick={() => handleEditBU(bu)} variant="outlined" size="small">
-                          Edit
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {bu.showInfo && (
-                      <TableRow>
-                        <TableCell colSpan={11}>
-                          <InfoPanel profileType={bu.auditorProfileType} />
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          </AccordionDetails>
-        </Accordion>
-      ))}
-      <TablePagination
-        component="div"
-        count={data.length}
-        page={currentPage}
-        onPageChange={handleChangePage}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        rowsPerPageOptions={[10, 20, 50]}
-      />
-      {editBU && (
-        <EditBusinessUnitModal 
-          open={editModalOpen}
-          onClose={() => setEditModalOpen(false)}
-          businessUnit={editBU}
-          onSave={handleSaveBU}
-        />
-      )}
-    </Box>
-  );
-};
-
-export default CSFScopeAccordion;
+export default WorkerSearchModal;
