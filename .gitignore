@@ -1,121 +1,97 @@
-// CSFScopeAGGrid.jsx
-import React, { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+import React, { useEffect, useState } from 'react';
+import { Accordion, AccordionSummary, AccordionDetails, Typography, Table, TableHead, TableBody, TableRow, TableCell, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Box, Snackbar, Alert } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import axios from 'axios';
-import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, List, ListItem, ListItemIcon, ListItemText, Checkbox, CircularProgress, Snackbar, Alert } from '@mui/material';
-import 'ag-grid-community/dist/styles/ag-grid.css';
-import 'ag-grid-community/dist/styles/ag-theme-alpine.css';
 
-// Register the community module per current v33 docs.
-ModuleRegistry.registerModules([AllCommunityModule]);
-
-// ----------------------- WorkerNamesCellEditor -----------------------
-// A custom cell editor that opens a modal to search for worker names.
-// It uses two text fields (First Name and Last Name) and a Search button to call the WorkerInfo API.
-// The user can select multiple names; when Done is clicked, the editor returns a comma-separated string.
-const WorkerNamesCellEditor = forwardRef((props, ref) => {
-  // Props from AG Grid include: value (current cell value), colDef, stopEditing(), etc.
-  const [open, setOpen] = useState(true);
+// Dummy filtering UI can be added if needed.
+  
+// WorkerSearchModal: Opens a modal where the user enters first & last name, clicks Search, sees a list of matching workers, and selects multiple names.
+const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
-  const [selected, setSelected] = useState([]);
+  const [selected, setSelected] = useState(initialValue ? initialValue.split(', ') : []);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
-
-  // Expose getValue() so AG Grid can commit the new value when editing stops.
-  useImperativeHandle(ref, () => ({
-    getValue() {
-      return selected.join(', ');
-    }
-  }));
-
-  // Simple input sanitization
-  const sanitizeInput = (str) => str.replace(/[<>]/g, '');
 
   const searchWorkers = async () => {
     if (!firstName.trim() || !lastName.trim()) {
-      setSnackbar({ open: true, message: 'Please enter both first and last names', severity: 'error' });
+      setSnackbar({ open: true, message: 'Please enter both first and last names.', severity: 'error' });
       return;
     }
     setLoading(true);
     try {
-      const response = await axios.get('/api/GetWorkerName', {
-        params: { FirstName: sanitizeInput(firstName.trim()), LastName: sanitizeInput(lastName.trim()) }
+      const response = await axios.get('/api/GetWorkerName', { 
+        params: { FirstName: firstName.trim(), LastName: lastName.trim() }
       });
       if (response.data.length === 0) {
-        setSnackbar({ open: true, message: 'No workers found', severity: 'error' });
+        setSnackbar({ open: true, message: 'No workers found.', severity: 'error' });
       }
-      const mapped = response.data.map(w => ({
-        label: w.NameFull,
-        jobTitle: w.JobTitle,
-        supervisor: w.SupervisorFullName
-      }));
-      setResults(mapped);
+      setResults(response.data);
     } catch (error) {
-      setSnackbar({ open: true, message: 'Error fetching workers', severity: 'error' });
+      setSnackbar({ open: true, message: 'Error fetching workers.', severity: 'error' });
       setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleSelect = (workerLabel) => {
-    if (selected.includes(workerLabel)) {
-      setSelected(selected.filter(x => x !== workerLabel));
+  const toggleSelect = (nameFull) => {
+    if (selected.includes(nameFull)) {
+      setSelected(selected.filter(n => n !== nameFull));
     } else {
-      setSelected([...selected, workerLabel]);
+      setSelected([...selected, nameFull]);
     }
   };
 
   const handleDone = () => {
-    // When Done is clicked, the new value is committed.
-    setOpen(false);
-    props.stopEditing(); // This will trigger AG Grid to call getValue()
+    onSelect(selected.join(', '));
+    onClose();
   };
 
   return (
-    <Dialog open={open} onClose={() => props.stopEditing()} fullWidth maxWidth="sm">
-      <DialogTitle>Edit {props.colDef.header}</DialogTitle>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Search Worker</DialogTitle>
       <DialogContent>
-        <TextField
-          label="First Name"
-          value={firstName}
-          onChange={e => setFirstName(e.target.value)}
-          fullWidth
-          margin="normal"
+        <TextField 
+          label="First Name" 
+          value={firstName} 
+          onChange={e => setFirstName(e.target.value)} 
+          fullWidth 
+          margin="normal" 
         />
-        <TextField
-          label="Last Name"
-          value={lastName}
-          onChange={e => setLastName(e.target.value)}
-          fullWidth
-          margin="normal"
+        <TextField 
+          label="Last Name" 
+          value={lastName} 
+          onChange={e => setLastName(e.target.value)} 
+          fullWidth 
+          margin="normal" 
         />
-        <Button onClick={searchWorkers} variant="contained" disabled={loading} sx={{ mt: 1 }}>
-          {loading ? <CircularProgress size={20} /> : "Search"}
+        <Button onClick={searchWorkers} variant="contained" disabled={loading}>
+          {loading ? 'Searching...' : 'Search'}
         </Button>
         {results.length > 0 && (
-          <Box sx={{ mt: 2 }}>
-            <List>
-              {results.map(worker => {
-                const labelId = `checkbox-list-label-${worker.label}`;
-                return (
-                  <ListItem key={worker.label} button onClick={() => toggleSelect(worker.label)}>
-                    <ListItemIcon>
-                      <Checkbox checked={selected.includes(worker.label)} />
-                    </ListItemIcon>
-                    <ListItemText primary={worker.label} secondary={`Job: ${worker.jobTitle} | Supervisor: ${worker.supervisor}`} />
-                  </ListItem>
-                );
-              })}
-            </List>
+          <Box mt={2}>
+            <Typography variant="subtitle1">Select Worker(s):</Typography>
+            {results.map(worker => (
+              <Box 
+                key={worker.NameFull} 
+                display="flex" 
+                alignItems="center" 
+                onClick={() => toggleSelect(worker.NameFull)}
+                sx={{ cursor: 'pointer', py: 0.5 }}
+              >
+                <input type="checkbox" checked={selected.includes(worker.NameFull)} readOnly style={{ marginRight: 8 }} />
+                <Typography>
+                  {worker.NameFull} - {worker.JobTitle} (Supervisor: {worker.SupervisorFullName})
+                </Typography>
+              </Box>
+            ))}
           </Box>
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => props.stopEditing()}>Cancel</Button>
+        <Button onClick={onClose}>Cancel</Button>
         <Button onClick={handleDone} variant="contained">Done</Button>
       </DialogActions>
       <Snackbar
@@ -129,46 +105,153 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
       </Snackbar>
     </Dialog>
   );
-});
-WorkerNamesCellEditor.displayName = 'WorkerNamesCellEditor';
+};
 
-// ----------------------- ProfileTypeRenderer -----------------------
-// This custom cell renderer simulates Level 3 by providing a toggle button
-// that, when clicked, shows additional information (profile type definitions).
-const ProfileTypeRenderer = (props) => {
-  const [open, setOpen] = useState(false);
-  const definitions = {
-    Provider: "Supplies services to other BUs.",
-    Consumer: "Receives services from other BUs.",
-    Both: "Acts as both Provider and Consumer.",
-    Inheritor: "Inherits control from another BU."
-  };
+// EditBusinessUnitModal: A modal form to edit one Business Unit row (Level 2).
+// Includes fields for BU Owner, Auditor Custodian (with a button to open WorkerSearchModal), and other fields.
+const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
+  const [form, setForm] = useState({ ...businessUnit });
+  const [workerModalOpen, setWorkerModalOpen] = useState(false);
+  const [editingField, setEditingField] = useState('');
   
+  const handleFieldChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const openWorkerModal = (field) => {
+    setEditingField(field);
+    setWorkerModalOpen(true);
+  };
+
+  const handleWorkerSelect = (value) => {
+    handleFieldChange(editingField, value);
+  };
+
+  const handleSave = () => {
+    onSave(form);
+    onClose();
+  };
+
   return (
-    <div>
-      <Button size="small" onClick={() => setOpen(!open)}>
-        {open ? "Hide Info" : "Show Info"}
-      </Button>
-      {open && (
-        <div style={{ marginTop: 4, backgroundColor: '#f4f4f4', padding: 8, borderRadius: 4 }}>
-          <ul style={{ margin: 0, paddingLeft: 16 }}>
-            {props.value ? (
-              <li><strong>{props.value}:</strong> {definitions[props.value] || "No definition available."}</li>
-            ) : (
-              <li>No Profile Type selected.</li>
-            )}
-          </ul>
-        </div>
-      )}
-    </div>
+    <>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+        <DialogTitle>Edit Business Unit</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="BU (Read Only)"
+            value={form.businessUnitAbbr}
+            fullWidth
+            margin="normal"
+            disabled
+          />
+          <Box display="flex" alignItems="center" mb={2}>
+            <TextField
+              label="BU Owner"
+              value={form.businessUnitOwner}
+              fullWidth
+              margin="normal"
+              disabled
+            />
+            <Button onClick={() => openWorkerModal('businessUnitOwner')} variant="outlined" sx={{ ml: 1 }}>
+              Edit
+            </Button>
+          </Box>
+          <Box display="flex" alignItems="center" mb={2}>
+            <TextField
+              label="Auditor Custodian"
+              value={form.auditorSubcatCustodian}
+              fullWidth
+              margin="normal"
+              disabled
+            />
+            <Button onClick={() => openWorkerModal('auditorSubcatCustodian')} variant="outlined" sx={{ ml: 1 }}>
+              Edit
+            </Button>
+          </Box>
+          <TextField
+            label="In Scope?"
+            value={form.auditorIsInScope}
+            onChange={e => handleFieldChange('auditorIsInScope', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+          >
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </TextField>
+          <TextField
+            label="Justification"
+            value={form.auditorJustification}
+            onChange={e => handleFieldChange('auditorJustification', e.target.value)}
+            fullWidth
+            margin="normal"
+            disabled={form.auditorIsInScope === 'Yes'}
+          />
+          <TextField
+            label="Maturity Projection"
+            value={form.maturityProjection}
+            onChange={e => handleFieldChange('maturityProjection', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+          >
+            {["Increase", "Decrease", "Maintain"].map(option => (
+              <MenuItem key={option} value={option}>{option}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Profile Type"
+            value={form.auditorProfileType}
+            onChange={e => handleFieldChange('auditorProfileType', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+          >
+            {["Provider", "Consumer", "Both", "Inheritor"].map(option => (
+              <MenuItem key={option} value={option}>{option}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Consuming From BU"
+            value={form.auditorConsumingFromBusinessUnit}
+            onChange={e => handleFieldChange('auditorConsumingFromBusinessUnit', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+          >
+            {["ABC", "UIO", "POA", "SKA-C", "Other"].map(option => (
+              <MenuItem key={option} value={option}>{option}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Department Name"
+            value={form.departmentName}
+            onChange={e => handleFieldChange('departmentName', e.target.value)}
+            fullWidth
+            margin="normal"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+      <WorkerSearchModal 
+        open={workerModalOpen} 
+        onClose={() => setWorkerModalOpen(false)}
+        onSelect={handleWorkerSelect}
+        initialValue={form[editingField]}
+      />
+    </>
   );
 };
 
-// ----------------------- Main Component: CSFScopeAGGrid -----------------------
-const CSFScopeAGGrid = () => {
-  const [rowData, setRowData] = useState([]);
+const CSFScopeAccordion = () => {
+  const [data, setData] = useState([]);
+  const [editBU, setEditBU] = useState(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
-  // Fetch ScopeData and group by subcategoryId (Level 1: Subcategories)
+  // Fetch ScopeData and group by subcategoryId (Level 1)
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -186,7 +269,7 @@ const CSFScopeAGGrid = () => {
           }
           grouped[item.subcategoryId].businessUnits.push(item);
         });
-        setRowData(Object.values(grouped));
+        setData(Object.values(grouped));
       } catch (error) {
         console.error('Error fetching scope data:', error);
       }
@@ -194,102 +277,83 @@ const CSFScopeAGGrid = () => {
     fetchData();
   }, []);
 
-  // Master grid (Level 1) column definitions.
-  const masterColumnDefs = useMemo(() => [
-    { headerName: "Subcategory", field: "subcategoryName", filter: 'agSetColumnFilter' },
-    { headerName: "Description", field: "subcategoryDescription" },
-    { headerName: "Related Subcategories", field: "relatedSubcategories" }
-  ], []);
+  const handleEditBU = (bu) => {
+    setEditBU(bu);
+    setEditModalOpen(true);
+  };
 
-  // Detail grid (Level 2) column definitions.
-  const detailColumnDefs = useMemo(() => [
-    { headerName: "BU", field: "businessUnitAbbr", editable: false },
-    { 
-      headerName: "BU Owner", 
-      field: "businessUnitOwner", 
-      editable: true,
-      cellEditor: "workerNamesCellEditor"
-    },
-    { 
-      headerName: "Auditor Custodian", 
-      field: "auditorSubcatCustodian", 
-      editable: true,
-      cellEditor: "workerNamesCellEditor"
-    },
-    { 
-      headerName: "In Scope?", 
-      field: "auditorIsInScope", 
-      editable: true,
-      cellEditor: "agSelectCellEditor",
-      cellEditorParams: { values: ["Yes", "No"] }
-    },
-    { headerName: "Justification", field: "auditorJustification", editable: true },
-    { 
-      headerName: "Maturity Projection", 
-      field: "maturityProjection", 
-      editable: true,
-      cellEditor: "agSelectCellEditor",
-      cellEditorParams: { values: ["Increase", "Decrease", "Maintain"] }
-    },
-    { 
-      headerName: "Profile Type", 
-      field: "auditorProfileType", 
-      editable: true,
-      cellEditor: "agSelectCellEditor",
-      cellEditorParams: { values: ["Provider", "Consumer", "Both", "Inheritor"] },
-      cellRenderer: "profileTypeRenderer"
-    },
-    { 
-      headerName: "Consuming From BU", 
-      field: "auditorConsumingFromBusinessUnit", 
-      editable: true,
-      cellEditor: "agSelectCellEditor",
-      cellEditorParams: { values: ["ABC", "UIO", "POA", "SKA-C", "Other"] }
-    },
-    { headerName: "Department Name", field: "departmentName", editable: true }
-  ], []);
-
-  // Framework components (custom cell editor and renderer)
-  const frameworkComponents = useMemo(() => ({
-    workerNamesCellEditor: WorkerNamesCellEditor,
-    profileTypeRenderer: ProfileTypeRenderer
-  }), []);
-
-  // Detail cell renderer parameters for master/detail mode.
-  const detailCellRendererParams = {
-    detailGridOptions: {
-      columnDefs: detailColumnDefs,
-      defaultColDef: {
-        flex: 1,
-        resizable: true,
-        filter: true,
-      },
-      frameworkComponents: frameworkComponents,
-      pagination: true,
-      paginationPageSize: 5,
-      onCellValueChanged: (params) => {
-        console.log('Detail grid cell value changed', params);
-      }
-    },
-    getDetailRowData: (params) => {
-      params.successCallback(params.data.businessUnits);
-    }
+  const handleSaveBU = (newData) => {
+    // Update the client-side data for the business unit.
+    setData(prev => prev.map(subcat => ({
+      ...subcat,
+      businessUnits: subcat.businessUnits.map(bu =>
+        bu.id === newData.id ? newData : bu
+      )
+    })));
+    setEditModalOpen(false);
   };
 
   return (
-    <Box className="ag-theme-alpine" style={{ height: "700px", width: "100%" }}>
-      <AgGridReact
-        rowData={rowData}
-        columnDefs={masterColumnDefs}
-        masterDetail={true}
-        detailCellRendererParams={detailCellRendererParams}
-        frameworkComponents={frameworkComponents}
-        pagination={true}
-        paginationPageSize={10}
-        onGridReady={params => params.api.sizeColumnsToFit()}
-      />
-    </Box>
+    <div style={{ margin: '16px' }}>
+      {data.map(subcat => (
+        <Accordion key={subcat.subcategoryId}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6">{subcat.subcategoryName}</Typography>
+            <Box ml={2}>
+              <Typography variant="body2">{subcat.subcategoryDescription}</Typography>
+              <Typography variant="caption">Related: {subcat.relatedSubcategories}</Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>BU</TableCell>
+                  <TableCell>BU Owner</TableCell>
+                  <TableCell>Auditor Custodian</TableCell>
+                  <TableCell>In Scope?</TableCell>
+                  <TableCell>Justification</TableCell>
+                  <TableCell>Maturity Projection</TableCell>
+                  <TableCell>Profile Type</TableCell>
+                  <TableCell>Consuming From BU</TableCell>
+                  <TableCell>Department</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {subcat.businessUnits.map(bu => (
+                  <TableRow key={bu.id}>
+                    <TableCell>{bu.businessUnitAbbr}</TableCell>
+                    <TableCell>{bu.businessUnitOwner}</TableCell>
+                    <TableCell>{bu.auditorSubcatCustodian}</TableCell>
+                    <TableCell>{bu.auditorIsInScope}</TableCell>
+                    <TableCell>{bu.auditorJustification}</TableCell>
+                    <TableCell>{bu.maturityProjection}</TableCell>
+                    <TableCell>{bu.auditorProfileType}</TableCell>
+                    <TableCell>{bu.auditorConsumingFromBusinessUnit}</TableCell>
+                    <TableCell>{bu.departmentName}</TableCell>
+                    <TableCell>
+                      <Button onClick={() => handleEditBU(bu)} variant="outlined" size="small">
+                        Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+      {editBU && (
+        <EditBusinessUnitModal 
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          businessUnit={editBU}
+          onSave={handleSaveBU}
+        />
+      )}
+    </div>
   );
 };
 
-export default CSFScopeAGGrid;
+export default CSFScopeAccordion;
