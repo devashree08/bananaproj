@@ -463,3 +463,53 @@ const CSFScopeTable = () => {
           <div
             style={{
               whiteSpace: "normal",
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+            }}
+          >
+            {cell.getValue()}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "relatedSubcategories",
+        header: "Related Subcategories",
+        filterVariant: "text",
+      },
+    ],
+    [tableData]
+  );
+
+  const mainTableProps = {
+    columns: subcategoryColumns,
+    data: tableData,
+    enableFilters: true,
+    enableEditing: false,
+    enableRowExpansion: true,
+    renderDetailPanel: ({ row }) => (
+      <NestedBUScopeTable
+        businessUnits={row.original.businessUnits}
+        subcatIndex={row.index}
+        updateBusinessUnitCell={(subcatIdx, rowIdx, columnId, value) => {
+          setTableData((prev) => {
+            const newData = [...prev];
+            newData[subcatIdx].businessUnits[rowIdx] = {
+              ...newData[subcatIdx].businessUnits[rowIdx],
+              [columnId]: value,
+            };
+            return newData;
+          });
+        }}
+        fetchWorkerNames={fetchWorkerNames}
+      />
+    ),
+  };
+
+  return (
+    <Box sx={{ p: 2 }}>
+      <MaterialReactTable {...mainTableProps} />
+    </Box>
+  );
+};
+
+export default CSFScopeTable;
