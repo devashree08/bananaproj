@@ -1,8 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import {
-  MaterialReactTable,
-  useMaterialReactTable,
-} from "material-react-table";
+import { MaterialReactTable } from "material-react-table";
 import {
   MenuItem,
   TextField,
@@ -30,23 +27,18 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
 const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*                         Helper: sanitizeInput                              */
+/*                           Helper: sanitizeInput                            */
 /* -------------------------------------------------------------------------- */
 const sanitizeInput = (str) => str.replace(/[<>]/g, "");
 
 /* -------------------------------------------------------------------------- */
 /*          WorkerNamesModalEdit – Modal for Worker Search                    */
 /* -------------------------------------------------------------------------- */
-// This modal shows two text fields (FirstName & LastName) plus a Search button.
-// It calls the API only after Search is clicked and displays results in a list
-// with checkboxes so that multiple selections are allowed.
-// When "Done" is clicked, it calls the provided updateCell function to update the cell.
-const WorkerNamesModalEdit = ({
-  cell,
-  label,
-  fetchWorkerNames,
-  updateCell, // explicitly provided update function from the nested table
-}) => {
+// This modal displays two text fields (First Name and Last Name) and a Search button.
+// The API is called only when the user clicks Search. The returned results (with extra details)
+// are displayed in a list with checkboxes so that multiple selections are allowed.
+// When the user clicks "Done", the provided updateCell function is invoked to update the cell.
+const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -106,21 +98,17 @@ const WorkerNamesModalEdit = ({
   };
 
   const handleToggle = (worker) => {
-    const currentIndex = selectedWorkers.findIndex(
-      (w) => w.value === worker.value
-    );
-    let newSelected = [];
-    if (currentIndex === -1) {
-      newSelected = [...selectedWorkers, worker];
+    const exists = selectedWorkers.some((w) => w.value === worker.value);
+    if (exists) {
+      setSelectedWorkers(selectedWorkers.filter((w) => w.value !== worker.value));
     } else {
-      newSelected = selectedWorkers.filter((w) => w.value !== worker.value);
+      setSelectedWorkers([...selectedWorkers, worker]);
     }
-    setSelectedWorkers(newSelected);
   };
 
-  // When "Done" is clicked, call the updateCell function (if provided) to update the cell value.
   const handleDone = () => {
     const names = selectedWorkers.map((w) => w.value).join(", ");
+    // Use the explicit updateCell function if provided; otherwise try cell.setValue.
     if (typeof updateCell === "function") {
       updateCell(names);
     } else if (cell && typeof cell.setValue === "function") {
@@ -172,9 +160,7 @@ const WorkerNamesModalEdit = ({
                         <Checkbox
                           edge="start"
                           checked={
-                            selectedWorkers.findIndex(
-                              (w) => w.value === worker.value
-                            ) !== -1
+                            selectedWorkers.some((w) => w.value === worker.value)
                           }
                           tabIndex={-1}
                           disableRipple
@@ -218,33 +204,108 @@ const WorkerNamesModalEdit = ({
 };
 
 /* -------------------------------------------------------------------------- */
-/*                NestedBUScopeTable Component (Level 2 & 3)                  */
+/*               CSFScopeTable Component (Levels 1, 2, & 3)                   */
 /* -------------------------------------------------------------------------- */
-const NestedBUScopeTable = ({
-  businessUnits,
-  subcatIndex,
-  updateBusinessUnitCell,
-  fetchWorkerNames,
-}) => {
-  const businessUnitColumns = useMemo(
+const CSFScopeTable = () => {
+  const [tableData, setTableData] = useState([]);
+
+  // Fetch ScopeData and group by subcategoryId (Level 1)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get("/api/ScopeData");
+        const groupedData = Object.values(
+          response.data.reduce((acc, item) => {
+            if (!acc[item.subcategoryId]) {
+              acc[item.subcategoryId] = {
+                subcategoryId: item.subcategoryId,
+                subcategoryName: item.subcategoryName,
+                subcategoryDescription: item.subcategoryDescription,
+                relatedSubcategories: item.relatedCsf1_1Subcategories,
+                businessUnits: [],
+              };
+            }
+            acc[item.subcategoryId].businessUnits.push(item);
+            return acc;
+          }, {})
+        );
+        setTableData(groupedData);
+      } catch (error) {
+        console.error("Error fetching scope data:", error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // API call to fetch Worker Names – using sanitized first and last names.
+  const fetchWorkerNames = async (firstName, lastName) => {
+    try {
+      const response = await axios.get(`/api/GetWorkerName`, {
+        params: { FirstName: firstName, LastName: lastName },
+      });
+      return response.data.map((worker) => ({
+        label: `${worker.NameFull} - ${worker.JobTitle} (Supervisor: ${worker.SupervisorFullName})`,
+        value: worker.NameFull,
+        jobTitle: worker.JobTitle,
+        supervisorFullName: worker.SupervisorFullName,
+      }));
+    } catch (error) {
+      console.error("Error fetching worker names:", error);
+      return [];
+    }
+  };
+
+  // LEVEL 1: Subcategory Columns
+  const subcategoryColumns = useMemo(
     () => [
       {
-        accessorKey: "businessUnitAbbr",
-        header: "BU",
-        enableEditing: false,
+        accessorKey: "subcategoryName",
+        header: "Subcategory",
+        size: 120,
+        filterVariant: "multi-select",
+        filterSelectOptions: [
+          ...new Set(tableData.map((row) => row.subcategoryName)),
+        ],
       },
+      {
+        accessorKey: "subcategoryDescription",
+        header: "Description",
+        size: 300,
+        filterVariant: "text",
+        Cell: ({ cell }) => (
+          <div
+            style={{
+              whiteSpace: "normal",
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+            }}
+          >
+            {cell.getValue()}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "relatedSubcategories",
+        header: "Related Subcategories",
+        filterVariant: "text",
+      },
+    ],
+    [tableData]
+  );
+
+  // LEVEL 2: Business Unit Columns (with our modal editors)
+  const businessUnitColumns = useMemo(
+    () => [
+      { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
       {
         accessorKey: "businessUnitOwner",
         header: "BU Owner",
-        // Pass an explicit updateCell function to our modal editor.
+        // Use our modal editor for multiple selections
         Edit: ({ cell, row }) => (
           <WorkerNamesModalEdit
             cell={cell}
             label="BU Owner"
             fetchWorkerNames={fetchWorkerNames}
-            updateCell={(newValue) =>
-              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
-            }
           />
         ),
       },
@@ -256,9 +317,6 @@ const NestedBUScopeTable = ({
             cell={cell}
             label="Auditor Custodian"
             fetchWorkerNames={fetchWorkerNames}
-            updateCell={(newValue) =>
-              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
-            }
           />
         ),
       },
@@ -365,172 +423,51 @@ const NestedBUScopeTable = ({
         ),
       },
     ],
-    [updateBusinessUnitCell, subcatIndex, fetchWorkerNames]
+    [fetchWorkerNames]
   );
-
-  const nestedTable = useMaterialReactTable({
-    columns: businessUnitColumns,
-    data: businessUnits,
-    enableEditing: true,
-    editDisplayMode: "row",
-    muiTableBodyCellEditTextFieldProps: { variant: "standard" },
-    meta: {
-      updateData: (rowIndex, columnId, value) =>
-        updateBusinessUnitCell(subcatIndex, rowIndex, columnId, value),
-    },
-    renderDetailPanel: ({ row }) => (
-      <Box
-        p={2}
-        sx={{
-          backgroundColor: "#f4f4f4",
-          borderRadius: "8px",
-          marginTop: "10px",
-        }}
-      >
-        <Typography variant="h6">Profile Type Definitions</Typography>
-        <ul>
-          <li>
-            <strong>Provider:</strong> Supplies services to other BUs.
-          </li>
-          <li>
-            <strong>Consumer:</strong> Receives services from other BUs.
-          </li>
-          <li>
-            <strong>Both:</strong> Acts as both Provider & Consumer.
-          </li>
-          <li>
-            <strong>Inheritor:</strong> Inherits control from another BU.
-          </li>
-        </ul>
-      </Box>
-    ),
-  });
 
   return (
-    <Box>
-      <MaterialReactTable table={nestedTable} />
-    </Box>
-  );
-};
-
-/* -------------------------------------------------------------------------- */
-/*                    CSFScopeTable Component (Level 1)                     */
-/* -------------------------------------------------------------------------- */
-const CSFScopeTable = () => {
-  const [tableData, setTableData] = useState([]);
-
-  // Fetch Scope Data and group by subcategoryId
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get("/api/ScopeData");
-        const groupedData = Object.values(
-          response.data.reduce((acc, item) => {
-            if (!acc[item.subcategoryId]) {
-              acc[item.subcategoryId] = {
-                subcategoryId: item.subcategoryId,
-                subcategoryName: item.subcategoryName,
-                subcategoryDescription: item.subcategoryDescription,
-                relatedSubcategories: item.relatedCsf1_1Subcategories,
-                businessUnits: [],
-              };
-            }
-            acc[item.subcategoryId].businessUnits.push(item);
-            return acc;
-          }, {})
-        );
-        setTableData(groupedData);
-      } catch (error) {
-        console.error("Error fetching scope data:", error);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // API call to fetch Worker Names – uses sanitized first and last name.
-  const fetchWorkerNames = async (firstName, lastName) => {
-    try {
-      const response = await axios.get(`/api/GetWorkerName`, {
-        params: { FirstName: firstName, LastName: lastName },
-      });
-      return response.data.map((worker) => ({
-        label: `${worker.NameFull} - ${worker.JobTitle} (Supervisor: ${worker.SupervisorFullName})`,
-        value: worker.NameFull,
-        jobTitle: worker.JobTitle,
-        supervisorFullName: worker.SupervisorFullName,
-      }));
-    } catch (error) {
-      console.error("Error fetching worker names:", error);
-      return [];
-    }
-  };
-
-  // LEVEL 1: Subcategory Columns (Display Only with Filtering)
-  const subcategoryColumns = useMemo(
-    () => [
-      {
-        accessorKey: "subcategoryName",
-        header: "Subcategory",
-        size: 120,
-        filterVariant: "multi-select",
-        filterSelectOptions: [
-          ...new Set(tableData.map((row) => row.subcategoryName)),
-        ],
-      },
-      {
-        accessorKey: "subcategoryDescription",
-        header: "Description",
-        size: 300,
-        filterVariant: "text",
-        Cell: ({ cell }) => (
-          <div
-            style={{
-              whiteSpace: "normal",
-              wordWrap: "break-word",
-              overflowWrap: "break-word",
-            }}
-          >
-            {cell.getValue()}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "relatedSubcategories",
-        header: "Related Subcategories",
-        filterVariant: "text",
-      },
-    ],
-    [tableData]
-  );
-
-  // Create main table instance using MRT hook (Level 1)
-  const mainTable = useMaterialReactTable({
-    columns: subcategoryColumns,
-    data: tableData,
-    enableRowExpansion: true,
-    renderRowSubComponent: ({ row }) => (
-      <NestedBUScopeTable
-        businessUnits={row.original.businessUnits}
-        subcatIndex={row.index}
-        updateBusinessUnitCell={(subcatIdx, rowIdx, columnId, value) => {
-          setTableData((prev) => {
-            const newData = [...prev];
-            newData[subcatIdx].businessUnits[rowIdx] = {
-              ...newData[subcatIdx].businessUnits[rowIdx],
-              [columnId]: value,
-            };
-            return newData;
-          });
-        }}
-        fetchWorkerNames={fetchWorkerNames}
-      />
-    ),
-  });
-
-  return (
-    <Box sx={{ p: 2 }}>
-      <MaterialReactTable table={mainTable} />
-    </Box>
+    <MaterialReactTable
+      columns={subcategoryColumns}
+      data={tableData}
+      enableFilters
+      enableEditing={false}
+      renderDetailPanel={({ row }) => (
+        <MaterialReactTable
+          columns={businessUnitColumns}
+          data={row.original.businessUnits}
+          enableEditing
+          editDisplayMode="row"
+          muiTableContainerProps={{ sx: { overflowX: "auto" } }}
+          renderDetailPanel={() => (
+            <Box
+              p={2}
+              sx={{
+                backgroundColor: "#f4f4f4",
+                borderRadius: "8px",
+                marginTop: "10px",
+              }}
+            >
+              <Typography variant="h6">Profile Type Definitions</Typography>
+              <ul>
+                <li>
+                  <strong>Provider:</strong> Supplies services to other BUs.
+                </li>
+                <li>
+                  <strong>Consumer:</strong> Receives services from other BUs.
+                </li>
+                <li>
+                  <strong>Both:</strong> Acts as both Provider & Consumer.
+                </li>
+                <li>
+                  <strong>Inheritor:</strong> Inherits control from another BU.
+                </li>
+              </ul>
+            </Box>
+          )}
+        />
+      )}
+    />
   );
 };
 
