@@ -3,20 +3,19 @@ import React, { useState, useEffect, useMemo, forwardRef, useImperativeHandle } 
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import axios from 'axios';
-import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, List, ListItem, ListItemIcon, Checkbox, ListItemText, CircularProgress, Snackbar, Alert } from '@mui/material';
+import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, List, ListItem, ListItemIcon, ListItemText, Checkbox, CircularProgress, Snackbar, Alert } from '@mui/material';
 import 'ag-grid-community/dist/styles/ag-grid.css';
 import 'ag-grid-community/dist/styles/ag-theme-alpine.css';
 
-// -----------------------------------------------------------------------------
-// Register community modules (using the singular export per current v33 docs)
+// Register the community module per current v33 docs.
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// -----------------------------------------------------------------------------
-// Custom cell editor for BU Owner / Auditor Custodian: Opens a modal to search workers.
-// This editor is implemented as a React forwardRef component so that AG Grid
-// can call getValue() to commit the new value.
+// ----------------------- WorkerNamesCellEditor -----------------------
+// A custom cell editor that opens a modal to search for worker names.
+// It uses two text fields (First Name and Last Name) and a Search button to call the WorkerInfo API.
+// The user can select multiple names; when Done is clicked, the editor returns a comma-separated string.
 const WorkerNamesCellEditor = forwardRef((props, ref) => {
-  // Props from AG Grid: value (current cell value), colDef, stopEditing(), etc.
+  // Props from AG Grid include: value (current cell value), colDef, stopEditing(), etc.
   const [open, setOpen] = useState(true);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -25,19 +24,19 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
   const [selected, setSelected] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
-  // Expose getValue() so that when editing is stopped, AG Grid uses our new value.
+  // Expose getValue() so AG Grid can commit the new value when editing stops.
   useImperativeHandle(ref, () => ({
     getValue() {
       return selected.join(', ');
     }
   }));
 
-  // Simple sanitization helper
+  // Simple input sanitization
   const sanitizeInput = (str) => str.replace(/[<>]/g, '');
 
   const searchWorkers = async () => {
     if (!firstName.trim() || !lastName.trim()) {
-      setSnackbar({ open: true, message: 'Enter both first and last names', severity: 'error' });
+      setSnackbar({ open: true, message: 'Please enter both first and last names', severity: 'error' });
       return;
     }
     setLoading(true);
@@ -71,9 +70,9 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
   };
 
   const handleDone = () => {
-    // Commit the new value and close editor.
+    // When Done is clicked, the new value is committed.
     setOpen(false);
-    props.stopEditing(); // This will cause AG Grid to call getValue()
+    props.stopEditing(); // This will trigger AG Grid to call getValue()
   };
 
   return (
@@ -100,14 +99,17 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
         {results.length > 0 && (
           <Box sx={{ mt: 2 }}>
             <List>
-              {results.map(worker => (
-                <ListItem key={worker.label} button onClick={() => toggleSelect(worker.label)}>
-                  <ListItemIcon>
-                    <Checkbox checked={selected.includes(worker.label)} />
-                  </ListItemIcon>
-                  <ListItemText primary={worker.label} secondary={`Job: ${worker.jobTitle} | Supervisor: ${worker.supervisor}`} />
-                </ListItem>
-              ))}
+              {results.map(worker => {
+                const labelId = `checkbox-list-label-${worker.label}`;
+                return (
+                  <ListItem key={worker.label} button onClick={() => toggleSelect(worker.label)}>
+                    <ListItemIcon>
+                      <Checkbox checked={selected.includes(worker.label)} />
+                    </ListItemIcon>
+                    <ListItemText primary={worker.label} secondary={`Job: ${worker.jobTitle} | Supervisor: ${worker.supervisor}`} />
+                  </ListItem>
+                );
+              })}
             </List>
           </Box>
         )}
@@ -130,9 +132,9 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
 });
 WorkerNamesCellEditor.displayName = 'WorkerNamesCellEditor';
 
-// -----------------------------------------------------------------------------
-// Custom cell renderer for Level 3: Shows Profile Type Definitions.
-// This renderer can be a toggle button that displays additional info.
+// ----------------------- ProfileTypeRenderer -----------------------
+// This custom cell renderer simulates Level 3 by providing a toggle button
+// that, when clicked, shows additional information (profile type definitions).
 const ProfileTypeRenderer = (props) => {
   const [open, setOpen] = useState(false);
   const definitions = {
@@ -141,14 +143,14 @@ const ProfileTypeRenderer = (props) => {
     Both: "Acts as both Provider and Consumer.",
     Inheritor: "Inherits control from another BU."
   };
-
+  
   return (
     <div>
       <Button size="small" onClick={() => setOpen(!open)}>
         {open ? "Hide Info" : "Show Info"}
       </Button>
       {open && (
-        <Box sx={{ mt: 1, p: 1, backgroundColor: '#f4f4f4', borderRadius: 1 }}>
+        <div style={{ marginTop: 4, backgroundColor: '#f4f4f4', padding: 8, borderRadius: 4 }}>
           <ul style={{ margin: 0, paddingLeft: 16 }}>
             {props.value ? (
               <li><strong>{props.value}:</strong> {definitions[props.value] || "No definition available."}</li>
@@ -156,25 +158,21 @@ const ProfileTypeRenderer = (props) => {
               <li>No Profile Type selected.</li>
             )}
           </ul>
-        </Box>
+        </div>
       )}
     </div>
   );
 };
 
-// -----------------------------------------------------------------------------
-// Main Component: CSFScopeAGGrid
-// This component sets up the master grid (Level 1) and uses master/detail to show Level 2.
-// The master grid supports filtering and pagination.
+// ----------------------- Main Component: CSFScopeAGGrid -----------------------
 const CSFScopeAGGrid = () => {
   const [rowData, setRowData] = useState([]);
 
-  // Fetch ScopeData from /api/ScopeData and group by subcategoryId for Level 1.
+  // Fetch ScopeData and group by subcategoryId (Level 1: Subcategories)
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await axios.get('/api/ScopeData');
-        // Group by subcategoryId.
         const grouped = {};
         response.data.forEach(item => {
           if (!grouped[item.subcategoryId]) {
@@ -248,16 +246,16 @@ const CSFScopeAGGrid = () => {
       cellEditor: "agSelectCellEditor",
       cellEditorParams: { values: ["ABC", "UIO", "POA", "SKA-C", "Other"] }
     },
-    { headerName: "Department Name", field: "departmentName", editable: true },
+    { headerName: "Department Name", field: "departmentName", editable: true }
   ], []);
 
-  // Framework components: our custom cell editor and cell renderer.
+  // Framework components (custom cell editor and renderer)
   const frameworkComponents = useMemo(() => ({
     workerNamesCellEditor: WorkerNamesCellEditor,
     profileTypeRenderer: ProfileTypeRenderer
   }), []);
 
-  // Detail cell renderer parameters for master/detail.
+  // Detail cell renderer parameters for master/detail mode.
   const detailCellRendererParams = {
     detailGridOptions: {
       columnDefs: detailColumnDefs,
@@ -270,7 +268,7 @@ const CSFScopeAGGrid = () => {
       pagination: true,
       paginationPageSize: 5,
       onCellValueChanged: (params) => {
-        console.log('Detail grid cell changed', params);
+        console.log('Detail grid cell value changed', params);
       }
     },
     getDetailRowData: (params) => {
