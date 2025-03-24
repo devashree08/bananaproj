@@ -25,11 +25,34 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import axios from 'axios';
 
+// ---------------- InfoPanel (Level 3) ----------------
+// This component displays the profile type definitions.
+// Wrapped in React.memo to avoid unnecessary re-renders.
+const InfoPanel = React.memo(({ profileType }) => {
+  const definitions = {
+    Provider: "Supplies services to other BUs.",
+    Consumer: "Receives services from other BUs.",
+    Both: "Acts as both Provider & Consumer.",
+    Inheritor: "Inherits control from another BU."
+  };
+
+  return (
+    <Box sx={{ p: 1, backgroundColor: '#f4f4f4', borderRadius: 1, mt: 1 }}>
+      <Typography variant="h6">Profile Type Definitions</Typography>
+      <ul style={{ margin: 0, paddingLeft: 16 }}>
+        <li><strong>Provider:</strong> {definitions.Provider}</li>
+        <li><strong>Consumer:</strong> {definitions.Consumer}</li>
+        <li><strong>Both:</strong> {definitions.Both}</li>
+        <li><strong>Inheritor:</strong> {definitions.Inheritor}</li>
+      </ul>
+    </Box>
+  );
+});
+
 // ---------------- WorkerSearchModal ----------------
-// Modal for searching workers.
-// Users enter First & Last name, click Search (API is called only on click),
-// then select one or more workers. On Done, the selected names (comma‑separated)
-// are passed back via onSelect.
+// Modal that allows users to search for workers by first and last name,
+// then select one or more names. When "Done" is clicked, the selected names
+// are returned as a comma-separated string.
 const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -132,9 +155,8 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
 };
 
 // ---------------- EditBusinessUnitModal ----------------
-// Modal for editing one Business Unit (Level 2).
-// It displays all editable fields in a form.
-// For BU Owner and Auditor Custodian, an "Edit" button opens the WorkerSearchModal.
+// Modal form for editing a single Business Unit (Level 2).
+// It displays all editable fields and uses WorkerSearchModal for BU Owner and Auditor Custodian.
 const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
   const [form, setForm] = useState({ ...businessUnit });
   const [workerModalOpen, setWorkerModalOpen] = useState(false);
@@ -242,15 +264,17 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
             ))}
           </TextField>
           {/* Level 3 Info Panel */}
-          <Box sx={{ mt: 1, p: 1, backgroundColor: '#f4f4f4', borderRadius: 1 }}>
-            <Typography variant="h6">Profile Type Definitions</Typography>
-            <ul>
-              <li><strong>Provider:</strong> Supplies services to other BUs.</li>
-              <li><strong>Consumer:</strong> Receives services from other BUs.</li>
-              <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
-              <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
-            </ul>
-          </Box>
+          <Collapse in={true} timeout="auto" unmountOnExit>
+            <Box sx={{ p: 1, backgroundColor: '#f4f4f4', borderRadius: 1, mt: 1 }}>
+              <Typography variant="h6">Profile Type Definitions</Typography>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                <li><strong>Provider:</strong> Supplies services to other BUs.</li>
+                <li><strong>Consumer:</strong> Receives services from other BUs.</li>
+                <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
+                <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
+              </ul>
+            </Box>
+          </Collapse>
           <TextField
             label="Consuming From BU"
             value={form.auditorConsumingFromBusinessUnit}
@@ -287,17 +311,17 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
 };
 
 // ---------------- CSFScopeAccordion ----------------
-// This is our main component using Material‑UI Accordions for Level 1.
-// It renders a header row for Subcategory Name, Description, and Related CSF 1.1 Subcats (side by side),
-// paginates the master list, and displays a Table (Level 2) inside each Accordion for Business Units.
+// Main component using MUI Accordions for Level 1.
+// It renders a header for Subcategory columns (side by side), paginates the master list,
+// and inside each Accordion displays a Table (Level 2) for Business Units.
 const CSFScopeAccordion = () => {
   const [data, setData] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
-  const [rowsPerPage] = useState(5); // Pagination for Level 1
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [editBU, setEditBU] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
-  // Fetch ScopeData and group by subcategoryId
+  // Fetch and group ScopeData (Level 1)
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -314,7 +338,7 @@ const CSFScopeAccordion = () => {
               businessUnits: []
             };
           }
-          // Deduplicate based on businessUnitAbbr.
+          // Deduplicate by businessUnitAbbr so each BU appears only once.
           if (!grouped[subcatId].businessUnits.find(bu => bu.businessUnitAbbr === item.businessUnitAbbr)) {
             grouped[subcatId].businessUnits.push(item);
           }
@@ -334,17 +358,22 @@ const CSFScopeAccordion = () => {
     setCurrentPage(newPage);
   };
 
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setCurrentPage(0);
+  };
+
   const handleEditBU = (bu) => {
     setEditBU(bu);
     setEditModalOpen(true);
   };
 
   const handleSaveBU = (newData) => {
-    // Update the BU in the appropriate subcategory.
+    // Update only the BU that matches by businessUnitAbbr.
     setData(prev => prev.map(subcat => ({
       ...subcat,
       businessUnits: subcat.businessUnits.map(bu =>
-        bu.id === newData.id ? newData : bu
+        bu.businessUnitAbbr === newData.businessUnitAbbr ? newData : bu
       )
     })));
     setEditModalOpen(false);
@@ -354,17 +383,29 @@ const CSFScopeAccordion = () => {
     <Box sx={{ m: 2 }}>
       {/* Header for Level 1 */}
       <Box display="flex" sx={{ borderBottom: '1px solid #ccc', mb: 2, p: 1 }}>
-        <Box flex={1}><Typography variant="subtitle1" fontWeight="bold">Subcategory Name</Typography></Box>
-        <Box flex={2}><Typography variant="subtitle1" fontWeight="bold">Description</Typography></Box>
-        <Box flex={1}><Typography variant="subtitle1" fontWeight="bold">Related CSF 1.1 Subcats</Typography></Box>
+        <Box flex={1}>
+          <Typography variant="subtitle1" fontWeight="bold">Subcategory Name</Typography>
+        </Box>
+        <Box flex={2}>
+          <Typography variant="subtitle1" fontWeight="bold">Description</Typography>
+        </Box>
+        <Box flex={1}>
+          <Typography variant="subtitle1" fontWeight="bold">Related CSF 1.1 Subcats</Typography>
+        </Box>
       </Box>
       {paginatedData.map(subcat => (
         <Accordion key={subcat.subcategoryId}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box display="flex" width="100%">
-              <Box flex={1}><Typography variant="h6">{subcat.subcategoryName}</Typography></Box>
-              <Box flex={2}><Typography variant="body2">{subcat.subcategoryDescription}</Typography></Box>
-              <Box flex={1}><Typography variant="caption">{subcat.relatedSubcategories}</Typography></Box>
+              <Box flex={1}>
+                <Typography variant="h6">{subcat.subcategoryName}</Typography>
+              </Box>
+              <Box flex={2}>
+                <Typography variant="body2">{subcat.subcategoryDescription}</Typography>
+              </Box>
+              <Box flex={1}>
+                <Typography variant="caption">{subcat.relatedSubcategories}</Typography>
+              </Box>
             </Box>
           </AccordionSummary>
           <AccordionDetails>
@@ -386,7 +427,7 @@ const CSFScopeAccordion = () => {
               </TableHead>
               <TableBody>
                 {subcat.businessUnits.map(bu => (
-                  <React.Fragment key={bu.id}>
+                  <React.Fragment key={bu.businessUnitAbbr}>
                     <TableRow>
                       <TableCell>{bu.businessUnitAbbr}</TableCell>
                       <TableCell>{bu.businessUnitOwner}</TableCell>
@@ -398,7 +439,11 @@ const CSFScopeAccordion = () => {
                       <TableCell>{bu.auditorConsumingFromBusinessUnit}</TableCell>
                       <TableCell>{bu.departmentName}</TableCell>
                       <TableCell>
-                        <Button variant="text" size="small" onClick={() => bu.showInfo = !bu.showInfo}>
+                        <Button
+                          variant="text"
+                          size="small"
+                          onClick={() => { bu.showInfo = !bu.showInfo; setData([...data]); }}
+                        >
                           {bu.showInfo ? "Hide Info" : "Show Info"}
                         </Button>
                       </TableCell>
@@ -410,14 +455,8 @@ const CSFScopeAccordion = () => {
                     </TableRow>
                     {bu.showInfo && (
                       <TableRow>
-                        <TableCell colSpan={11} sx={{ backgroundColor: '#f4f4f4', p: 1 }}>
-                          <Typography variant="h6">Profile Type Definitions</Typography>
-                          <ul>
-                            <li><strong>Provider:</strong> Supplies services to other BUs.</li>
-                            <li><strong>Consumer:</strong> Receives services from other BUs.</li>
-                            <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
-                            <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
-                          </ul>
+                        <TableCell colSpan={11}>
+                          <InfoPanel profileType={bu.auditorProfileType} />
                         </TableCell>
                       </TableRow>
                     )}
@@ -428,14 +467,14 @@ const CSFScopeAccordion = () => {
           </AccordionDetails>
         </Accordion>
       ))}
-      {/* Pagination for Level 1 */}
       <TablePagination
         component="div"
         count={data.length}
         page={currentPage}
         onPageChange={handleChangePage}
         rowsPerPage={rowsPerPage}
-        rowsPerPageOptions={[rowsPerPage]}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10, 20, 50]}
       />
       {editBU && (
         <EditBusinessUnitModal 
