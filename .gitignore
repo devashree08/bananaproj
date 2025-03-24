@@ -7,16 +7,16 @@ import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextFie
 import 'ag-grid-community/dist/styles/ag-grid.css';
 import 'ag-grid-community/dist/styles/ag-theme-alpine.css';
 
-// Register the community module (per current docs using singular export)
+// -----------------------------------------------------------------------------
+// Register community modules (using the singular export per current v33 docs)
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// ============================= WorkerNamesCellEditor =============================
-// This custom cell editor uses forwardRef so that AG Grid can call getValue() on it.
-// It opens a modal (dialog) to allow the user to enter first & last names,
-// search the WorkerInfo API, and select one or more names. When "Done" is clicked,
-// it returns the comma-separated names as the cell's new value.
+// -----------------------------------------------------------------------------
+// Custom cell editor for BU Owner / Auditor Custodian: Opens a modal to search workers.
+// This editor is implemented as a React forwardRef component so that AG Grid
+// can call getValue() to commit the new value.
 const WorkerNamesCellEditor = forwardRef((props, ref) => {
-  // props includes: value (current cell value), colDef, stopEditing(), etc.
+  // Props from AG Grid: value (current cell value), colDef, stopEditing(), etc.
   const [open, setOpen] = useState(true);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -25,19 +25,19 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
   const [selected, setSelected] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
-  // Expose getValue() method to AG Grid when editing is finished.
+  // Expose getValue() so that when editing is stopped, AG Grid uses our new value.
   useImperativeHandle(ref, () => ({
     getValue() {
       return selected.join(', ');
     }
   }));
 
-  // Helper: sanitize input to remove dangerous characters.
+  // Simple sanitization helper
   const sanitizeInput = (str) => str.replace(/[<>]/g, '');
 
   const searchWorkers = async () => {
     if (!firstName.trim() || !lastName.trim()) {
-      setSnackbar({ open: true, message: 'Please enter both first and last names', severity: 'error' });
+      setSnackbar({ open: true, message: 'Enter both first and last names', severity: 'error' });
       return;
     }
     setLoading(true);
@@ -71,9 +71,9 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
   };
 
   const handleDone = () => {
+    // Commit the new value and close editor.
     setOpen(false);
-    // Call stopEditing to commit the value (AG Grid will then call getValue()).
-    props.stopEditing();
+    props.stopEditing(); // This will cause AG Grid to call getValue()
   };
 
   return (
@@ -130,15 +130,51 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
 });
 WorkerNamesCellEditor.displayName = 'WorkerNamesCellEditor';
 
-// ============================= Main Component =============================
+// -----------------------------------------------------------------------------
+// Custom cell renderer for Level 3: Shows Profile Type Definitions.
+// This renderer can be a toggle button that displays additional info.
+const ProfileTypeRenderer = (props) => {
+  const [open, setOpen] = useState(false);
+  const definitions = {
+    Provider: "Supplies services to other BUs.",
+    Consumer: "Receives services from other BUs.",
+    Both: "Acts as both Provider and Consumer.",
+    Inheritor: "Inherits control from another BU."
+  };
+
+  return (
+    <div>
+      <Button size="small" onClick={() => setOpen(!open)}>
+        {open ? "Hide Info" : "Show Info"}
+      </Button>
+      {open && (
+        <Box sx={{ mt: 1, p: 1, backgroundColor: '#f4f4f4', borderRadius: 1 }}>
+          <ul style={{ margin: 0, paddingLeft: 16 }}>
+            {props.value ? (
+              <li><strong>{props.value}:</strong> {definitions[props.value] || "No definition available."}</li>
+            ) : (
+              <li>No Profile Type selected.</li>
+            )}
+          </ul>
+        </Box>
+      )}
+    </div>
+  );
+};
+
+// -----------------------------------------------------------------------------
+// Main Component: CSFScopeAGGrid
+// This component sets up the master grid (Level 1) and uses master/detail to show Level 2.
+// The master grid supports filtering and pagination.
 const CSFScopeAGGrid = () => {
   const [rowData, setRowData] = useState([]);
 
-  // Fetch ScopeData and group by subcategoryId (Level 1: Subcategories)
+  // Fetch ScopeData from /api/ScopeData and group by subcategoryId for Level 1.
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await axios.get('/api/ScopeData');
+        // Group by subcategoryId.
         const grouped = {};
         response.data.forEach(item => {
           if (!grouped[item.subcategoryId]) {
@@ -154,40 +190,40 @@ const CSFScopeAGGrid = () => {
         });
         setRowData(Object.values(grouped));
       } catch (error) {
-        console.error(error);
+        console.error('Error fetching scope data:', error);
       }
     };
     fetchData();
   }, []);
 
-  // Master grid column definitions (Level 1)
-  const columnDefs = useMemo(() => [
+  // Master grid (Level 1) column definitions.
+  const masterColumnDefs = useMemo(() => [
     { headerName: "Subcategory", field: "subcategoryName", filter: 'agSetColumnFilter' },
     { headerName: "Description", field: "subcategoryDescription" },
-    { headerName: "Related Subcategories", field: "relatedSubcategories" },
+    { headerName: "Related Subcategories", field: "relatedSubcategories" }
   ], []);
 
-  // Detail grid (Level 2) column definitions
+  // Detail grid (Level 2) column definitions.
   const detailColumnDefs = useMemo(() => [
     { headerName: "BU", field: "businessUnitAbbr", editable: false },
     { 
       headerName: "BU Owner", 
       field: "businessUnitOwner", 
       editable: true,
-      cellEditor: "workerNamesCellEditor" 
+      cellEditor: "workerNamesCellEditor"
     },
     { 
       headerName: "Auditor Custodian", 
       field: "auditorSubcatCustodian", 
       editable: true,
-      cellEditor: "workerNamesCellEditor" 
+      cellEditor: "workerNamesCellEditor"
     },
     { 
       headerName: "In Scope?", 
       field: "auditorIsInScope", 
       editable: true,
-      cellEditor: "agSelectCellEditor", 
-      cellEditorParams: { values: ["Yes", "No"] } 
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: ["Yes", "No"] }
     },
     { headerName: "Justification", field: "auditorJustification", editable: true },
     { 
@@ -202,7 +238,8 @@ const CSFScopeAGGrid = () => {
       field: "auditorProfileType", 
       editable: true,
       cellEditor: "agSelectCellEditor",
-      cellEditorParams: { values: ["Provider", "Consumer", "Both", "Inheritor"] }
+      cellEditorParams: { values: ["Provider", "Consumer", "Both", "Inheritor"] },
+      cellRenderer: "profileTypeRenderer"
     },
     { 
       headerName: "Consuming From BU", 
@@ -214,11 +251,13 @@ const CSFScopeAGGrid = () => {
     { headerName: "Department Name", field: "departmentName", editable: true },
   ], []);
 
+  // Framework components: our custom cell editor and cell renderer.
   const frameworkComponents = useMemo(() => ({
-    workerNamesCellEditor: WorkerNamesCellEditor
+    workerNamesCellEditor: WorkerNamesCellEditor,
+    profileTypeRenderer: ProfileTypeRenderer
   }), []);
 
-  // Detail cell renderer params for the master/detail grid
+  // Detail cell renderer parameters for master/detail.
   const detailCellRendererParams = {
     detailGridOptions: {
       columnDefs: detailColumnDefs,
@@ -228,8 +267,10 @@ const CSFScopeAGGrid = () => {
         filter: true,
       },
       frameworkComponents: frameworkComponents,
+      pagination: true,
+      paginationPageSize: 5,
       onCellValueChanged: (params) => {
-        console.log('Detail grid cell value changed', params);
+        console.log('Detail grid cell changed', params);
       }
     },
     getDetailRowData: (params) => {
@@ -238,13 +279,15 @@ const CSFScopeAGGrid = () => {
   };
 
   return (
-    <Box className="ag-theme-alpine" style={{ height: "600px", width: "100%" }}>
+    <Box className="ag-theme-alpine" style={{ height: "700px", width: "100%" }}>
       <AgGridReact
         rowData={rowData}
-        columnDefs={columnDefs}
+        columnDefs={masterColumnDefs}
         masterDetail={true}
         detailCellRendererParams={detailCellRendererParams}
-        modules={[AllCommunityModule]}
+        frameworkComponents={frameworkComponents}
+        pagination={true}
+        paginationPageSize={10}
         onGridReady={params => params.api.sizeColumnsToFit()}
       />
     </Box>
