@@ -1,388 +1,358 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import MaterialReactTable, { useMaterialReactTable } from 'material-react-table';
-import axios from 'axios';
+import React, { useEffect, useState, useMemo } from "react";
 import {
-  Box,
-  Button,
+  MaterialReactTable,
+  useMaterialReactTable,
+} from "material-react-table";
+import {
+  MenuItem,
   TextField,
   Autocomplete,
-  Select,
-  MenuItem,
+  Box,
   Typography,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   CircularProgress,
-} from '@mui/material';
+} from "@mui/material";
+import axios from "axios";
+
+// Options for dropdowns
+const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
+const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
+const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*                           Profile Type Definitions                         */
+/*              WorkerNameModalEdit – Modal for Worker Search                 */
 /* -------------------------------------------------------------------------- */
+const WorkerNameModalEdit = ({ cell, label, fetchWorkerNames }) => {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+  const [options, setOptions] = useState([]);
 
-const profileTypeDefinitions = {
-  Provider: 'Definition for Provider: ...',
-  Consumer: 'Definition for Consumer: ...',
-  Both: 'Definition for Both: ...',
-  Inheritor: 'Definition for Inheritor: ...',
+  const handleOpen = () => {
+    setOpen(true);
+    setInputValue("");
+    setOptions([]);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+  };
+
+  const handleInputChange = async (event, newValue) => {
+    setInputValue(newValue);
+    // Only search when input contains a space (assumes "First Last")
+    if (newValue.includes(" ")) {
+      const results = await fetchWorkerNames(newValue);
+      setOptions(results);
+    } else {
+      setOptions([]);
+    }
+  };
+
+  const handleSelect = (event, newValue) => {
+    if (newValue) {
+      cell.setValue(newValue.value);
+    }
+  };
+
+  return (
+    <>
+      <Button variant="outlined" size="small" onClick={handleOpen}>
+        Edit {label}
+      </Button>
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>Edit {label}</DialogTitle>
+        <DialogContent>
+          <Autocomplete
+            options={options}
+            value={
+              options.find((o) => o.value === cell.getValue()) || null
+            }
+            onChange={handleSelect}
+            onInputChange={handleInputChange}
+            renderInput={(params) => (
+              <TextField {...params} label={`${label} (First Last)`} />
+            )}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Done</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
 };
 
 /* -------------------------------------------------------------------------- */
-/*                           Custom Hooks                                     */
+/*                    CSFScopeTable Component (Nested Table)                */
 /* -------------------------------------------------------------------------- */
+const CSFScopeTable = () => {
+  const [tableData, setTableData] = useState([]);
 
-// Hook to fetch and group BUScopeData
-const useFetchBUScopeData = () => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  // Fetch Scope Data and group it by subcategoryId
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get("/api/ScopeData");
+        const groupedData = Object.values(
+          response.data.reduce((acc, item) => {
+            if (!acc[item.subcategoryId]) {
+              acc[item.subcategoryId] = {
+                subcategoryId: item.subcategoryId,
+                subcategoryName: item.subcategoryName,
+                subcategoryDescription: item.subcategoryDescription,
+                relatedSubcategories: item.relatedCsf1_1Subcategories,
+                businessUnits: [],
+              };
+            }
+            acc[item.subcategoryId].businessUnits.push(item);
+            return acc;
+          }, {})
+        );
+        setTableData(groupedData);
+      } catch (error) {
+        console.error("Error fetching scope data:", error);
+      }
+    };
+    fetchData();
+  }, []);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  // API call to fetch Worker Names – passing FirstName and LastName as parameters
+  const fetchWorkerNames = async (inputValue) => {
+    if (!inputValue.includes(" ")) return [];
+    const [firstName, lastName] = inputValue.split(" ");
     try {
-      const response = await axios.get('/api/GetBUScopeData');
-      // Group flat data by subcategoryName
-      const groupedData = {};
-      response.data.forEach((item) => {
-        if (!groupedData[item.subcategoryName]) {
-          groupedData[item.subcategoryName] = {
-            subcategoryName: item.subcategoryName,
-            subcategoryDescription: item.subcategoryDescription,
-            relatedCsf1_1Subcategories: item.relatedCsf1_1Subcategories,
-            businessUnits: [],
-          };
-        }
-        groupedData[item.subcategoryName].businessUnits.push(item);
+      const response = await axios.get(`/api/GetWorkerName`, {
+        params: { FirstName: firstName, LastName: lastName },
       });
-      setData(Object.values(groupedData));
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching BUScopeData:', err);
-      setError(err);
-    } finally {
-      setLoading(false);
+      return response.data.map((worker) => ({
+        label: `${worker.Namefull} (${worker.JobTitle})`,
+        value: worker.Namefull,
+      }));
+    } catch (error) {
+      console.error("Error fetching worker names:", error);
+      return [];
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { data, loading, error };
-};
-
-// Hook to fetch Worker Info for autocomplete options
-const useFetchWorkerInfo = () => {
-  const [workerNames, setWorkerNames] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get('/api/GetWorkerInfo');
-      setWorkerNames(response.data);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching WorkerInfo:', err);
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { workerNames, loading, error };
-};
-
-/* -------------------------------------------------------------------------- */
-/*               BusinessUnitsTable Component (Level 2 & 3)                   */
-/* -------------------------------------------------------------------------- */
-
-const BusinessUnitsTable = ({
-  businessUnits,
-  subcatIndex,
-  updateBusinessUnitCell,
-  workerNames,
-  onAddBusinessUnit,
-}) => {
-  // Define Level 2 columns for the Business Unit table
-  const buColumns = useMemo(
+  // LEVEL 1: Subcategory Columns (Display Only with Filtering)
+  const subcategoryColumns = useMemo(
     () => [
       {
-        accessorKey: 'businessUnitAbbr',
-        header: 'Business Unit',
+        accessorKey: "subcategoryName",
+        header: "Subcategory",
+        size: 120,
+        filterVariant: "multi-select",
+        filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))],
+      },
+      {
+        accessorKey: "subcategoryDescription",
+        header: "Description",
+        size: 300,
+        filterVariant: "text",
+        Cell: ({ cell }) => (
+          <div
+            style={{
+              whiteSpace: "normal",
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+            }}
+          >
+            {cell.getValue()}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "relatedSubcategories",
+        header: "Related Subcategories",
+        filterVariant: "text",
+      },
+    ],
+    [tableData]
+  );
+
+  // LEVEL 2: Business Unit Columns (Fully Editable)
+  const businessUnitColumns = useMemo(
+    () => [
+      {
+        accessorKey: "businessUnitAbbr",
+        header: "BU",
         enableEditing: false,
       },
       {
-        accessorKey: 'businessUnitOwner',
-        header: 'BU Owner',
-        Cell: ({ cell, row }) => (
-          <Autocomplete
-            options={workerNames.map((w) => w.NameFull)}
-            value={cell.getValue() || ''}
-            onChange={(event, newValue) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, newValue)
-            }
-            renderInput={(params) => <TextField {...params} variant="standard" />}
+        accessorKey: "businessUnitOwner",
+        header: "BU Owner",
+        Edit: ({ cell }) => (
+          <WorkerNameModalEdit
+            cell={cell}
+            label="BU Owner"
+            fetchWorkerNames={fetchWorkerNames}
           />
         ),
       },
       {
-        accessorKey: 'auditorSubcatCustodian',
-        header: 'Auditor Custodian',
-        Cell: ({ cell, row }) => (
-          <Autocomplete
-            options={workerNames.map((w) => w.NameFull)}
-            value={cell.getValue() || ''}
-            onChange={(event, newValue) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, newValue)
-            }
-            renderInput={(params) => <TextField {...params} variant="standard" />}
+        accessorKey: "auditorSubcatCustodian",
+        header: "Auditor Custodian",
+        Edit: ({ cell }) => (
+          <WorkerNameModalEdit
+            cell={cell}
+            label="Auditor Custodian"
+            fetchWorkerNames={fetchWorkerNames}
           />
         ),
       },
       {
-        accessorKey: 'auditorIsInScope',
-        header: 'In Scope',
-        Cell: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ''}
-            onChange={(event) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
-            }
-            variant="standard"
+        accessorKey: "auditorIsInScope",
+        header: "In Scope?",
+        Edit: ({ cell }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => {
+              const newValue = event.target.value;
+              cell.setValue(newValue);
+              // If "Yes" then clear justification
+              if (newValue === "Yes") {
+                cell.row.getCell("auditorJustification").setValue("");
+              }
+            }}
           >
             <MenuItem value="Yes">Yes</MenuItem>
             <MenuItem value="No">No</MenuItem>
-          </Select>
+          </TextField>
         ),
       },
       {
-        accessorKey: 'auditorJustification',
-        header: 'Justification',
-        Cell: ({ cell, row }) => (
+        accessorKey: "auditorJustification",
+        header: "Justification",
+        Edit: ({ cell, row }) => (
           <TextField
-            value={cell.getValue() || ''}
-            onChange={(event) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
-            }
-            variant="standard"
-            disabled={row.original.auditorIsInScope === 'Yes'}
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => cell.setValue(event.target.value)}
+            disabled={row.getValue("auditorIsInScope") !== "No"}
           />
         ),
       },
       {
-        accessorKey: 'maturityProjection',
-        header: 'Maturity Projection',
-        Cell: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ''}
-            onChange={(event) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
-            }
-            variant="standard"
+        accessorKey: "maturityProjection",
+        header: "Maturity Projection",
+        Edit: ({ cell }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => cell.setValue(event.target.value)}
           >
-            <MenuItem value="Increase">Increase</MenuItem>
-            <MenuItem value="Decrease">Decrease</MenuItem>
-            <MenuItem value="Maintain">Maintain</MenuItem>
-          </Select>
+            {MaturityProjectionOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
         ),
       },
       {
-        accessorKey: 'auditorProfileType',
-        header: 'Profile Type',
-        Cell: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ''}
-            onChange={(event) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
-            }
-            variant="standard"
-            disabled={row.original.auditorIsInScope !== 'Yes'}
+        accessorKey: "auditorProfileType",
+        header: "Profile Type",
+        Edit: ({ cell, row }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => {
+              const newValue = event.target.value;
+              cell.setValue(newValue);
+              if (!["Consumer", "Both"].includes(newValue)) {
+                cell.row.getCell("auditorConsumingFromBusinessUnit").setValue("");
+              }
+            }}
           >
-            <MenuItem value="Provider">Provider</MenuItem>
-            <MenuItem value="Consumer">Consumer</MenuItem>
-            <MenuItem value="Both">Both</MenuItem>
-            <MenuItem value="Inheritor">Inheritor</MenuItem>
-          </Select>
+            {ProfileTypeOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
         ),
       },
       {
-        accessorKey: 'auditorConsumingFromBusinessUnit',
-        header: 'Consuming From BU',
-        Cell: ({ cell, row }) => (
-          <Select
-            value={cell.getValue() || ''}
-            onChange={(event) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
-            }
-            variant="standard"
+        accessorKey: "auditorConsumingFromBusinessUnit",
+        header: "Consuming From BU",
+        Edit: ({ cell, row }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => cell.setValue(event.target.value)}
             disabled={
-              row.original.auditorProfileType !== 'Consumer' &&
-              row.original.auditorProfileType !== 'Both'
+              row.getValue("auditorProfileType") !== "Consumer" &&
+              row.getValue("auditorProfileType") !== "Both"
             }
           >
-            <MenuItem value="ABC">ABC</MenuItem>
-            <MenuItem value="UIO">UIO</MenuItem>
-            <MenuItem value="POA">POA</MenuItem>
-            <MenuItem value="SKA-C">SKA-C</MenuItem>
-            <MenuItem value="Other">Other</MenuItem>
-          </Select>
+            {BusinessUnitOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
         ),
       },
       {
-        accessorKey: 'departmentName',
-        header: 'Department Name',
-        Cell: ({ cell, row }) => (
+        accessorKey: "departmentName",
+        header: "Department Name",
+        Edit: ({ cell }) => (
           <TextField
-            value={cell.getValue() || ''}
-            onChange={(event) =>
-              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
-            }
-            variant="standard"
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => cell.setValue(event.target.value)}
           />
         ),
       },
     ],
-    [workerNames]
+    [fetchWorkerNames]
   );
-
-  // Create nested table instance using the MRT hook
-  const nestedTable = useMaterialReactTable({
-    columns: buColumns,
-    data: businessUnits,
-    enableEditing: true,
-    // Level 3: Render a detail panel for each Business Unit row
-    renderDetailPanel: ({ row }) => (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6">Profile Type Definitions</Typography>
-        <Typography variant="body2">
-          {row.original.auditorProfileType
-            ? profileTypeDefinitions[row.original.auditorProfileType]
-            : 'No Profile Type selected.'}
-        </Typography>
-      </Box>
-    ),
-    meta: {
-      updateData: (rowIndex, columnId, value) =>
-        updateBusinessUnitCell(subcatIndex, rowIndex, columnId, value),
-    },
-    muiTableBodyCellEditTextFieldProps: { variant: 'standard' },
-  });
 
   return (
-    <Box>
-      <MaterialReactTable table={nestedTable} />
-      <Button onClick={onAddBusinessUnit} sx={{ mt: 2 }}>
-        Add Business Unit
-      </Button>
-    </Box>
-  );
-};
-
-/* -------------------------------------------------------------------------- */
-/*                    CSFScopeTable Component (Level 1)                     */
-/* -------------------------------------------------------------------------- */
-
-const CSFScopeTable = () => {
-  const { data, loading, error } = useFetchBUScopeData();
-  const { workerNames, loading: workerLoading, error: workerError } = useFetchWorkerInfo();
-  // Hold grouped data locally for editing
-  const [tableData, setTableData] = useState([]);
-  useEffect(() => {
-    setTableData(data);
-  }, [data]);
-
-  // Function to update a cell in the nested BU table
-  const updateBusinessUnitCell = useCallback((subcatIndex, rowIndex, columnId, value) => {
-    setTableData((prev) => {
-      const newData = [...prev];
-      newData[subcatIndex].businessUnits[rowIndex] = {
-        ...newData[subcatIndex].businessUnits[rowIndex],
-        [columnId]: value,
-      };
-      return newData;
-    });
-  }, []);
-
-  // Function to add a new BU row to a subcategory
-  const onAddBusinessUnit = useCallback((subcatIndex) => {
-    setTableData((prev) => {
-      const newData = [...prev];
-      const newRow = {
-        businessUnitAbbr: '',
-        businessUnitOwner: '',
-        auditorSubcatCustodian: '',
-        auditorIsInScope: '',
-        auditorJustification: '',
-        maturityProjection: '',
-        auditorProfileType: '',
-        auditorConsumingFromBusinessUnit: '',
-        departmentName: '',
-      };
-      newData[subcatIndex].businessUnits.push(newRow);
-      return newData;
-    });
-  }, []);
-
-  // Define Level 1 columns for the subcategory table
-  const mainColumns = useMemo(
-    () => [
-      {
-        accessorKey: 'subcategoryName',
-        header: 'Subcategory Name',
-        enableColumnFilter: true,
-        filterVariant: 'multi-select',
-      },
-      {
-        accessorKey: 'subcategoryDescription',
-        header: 'Description',
-      },
-      {
-        accessorKey: 'relatedCsf1_1Subcategories',
-        header: 'Related Subcategories',
-      },
-    ],
-    []
-  );
-
-  // Create main table instance using MRT hook
-  const mainTable = useMaterialReactTable({
-    columns: mainColumns,
-    data: tableData,
-    enableRowExpansion: true,
-    // Render the nested Business Units table in the row sub-component
-    renderRowSubComponent: ({ row }) => (
-      <BusinessUnitsTable
-        businessUnits={row.original.businessUnits}
-        subcatIndex={row.index}
-        updateBusinessUnitCell={updateBusinessUnitCell}
-        workerNames={workerNames}
-        onAddBusinessUnit={() => onAddBusinessUnit(row.index)}
-      />
-    ),
-  });
-
-  if (loading || workerLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error || workerError) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography color="error">Error loading data</Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ p: 2 }}>
-      <MaterialReactTable table={mainTable} />
-    </Box>
+    <MaterialReactTable
+      columns={subcategoryColumns}
+      data={tableData}
+      enableFilters
+      enableEditing={false}
+      renderDetailPanel={({ row }) => (
+        <MaterialReactTable
+          columns={businessUnitColumns}
+          data={row.original.businessUnits}
+          enableEditing
+          editDisplayMode="row"
+          muiTableContainerProps={{ sx: { overflowX: "auto" } }}
+          renderDetailPanel={() => (
+            <Box
+              p={2}
+              sx={{
+                backgroundColor: "#f4f4f4",
+                borderRadius: "8px",
+                marginTop: "10px",
+              }}
+            >
+              <Typography variant="h6">Profile Type Definitions</Typography>
+              <ul>
+                <li>
+                  <strong>Provider:</strong> Supplies services to other BUs.
+                </li>
+                <li>
+                  <strong>Consumer:</strong> Receives services from other BUs.
+                </li>
+                <li>
+                  <strong>Both:</strong> Acts as both Provider &amp; Consumer.
+                </li>
+                <li>
+                  <strong>Inheritor:</strong> Inherits control from another BU.
+                </li>
+              </ul>
+            </Box>
+          )}
+        />
+      )}
+    />
   );
 };
 
