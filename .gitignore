@@ -19,6 +19,8 @@ import {
   ListItemText,
   Checkbox,
   CircularProgress,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import axios from "axios";
 
@@ -28,12 +30,20 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
 const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*              WorkerNamesModalEdit – Modal for Worker Search                */
+/*                         Helper: sanitizeInput                              */
 /* -------------------------------------------------------------------------- */
-// This modal provides two text fields (FirstName & LastName) and a Search button.
-// It calls the API only when Search is clicked, then displays results in a list
-// with checkboxes so multiple selections can be made. Each result shows additional
-// details (JobTitle and SupervisorFullName) so users can choose correctly.
+const sanitizeInput = (str) => {
+  // Remove angle brackets to mitigate XSS; React escapes by default.
+  return str.replace(/[<>]/g, "");
+};
+
+/* -------------------------------------------------------------------------- */
+/*            WorkerNamesModalEdit – Modal for Worker Search                  */
+/* -------------------------------------------------------------------------- */
+// This modal now shows two text fields (FirstName & LastName), and a Search button.
+// The API is called only after clicking Search, and results are shown in a list with checkboxes.
+// Multiple selections are allowed. If an API error occurs or no workers are found,
+// a Snackbar toaster displays the error.
 const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
@@ -41,10 +51,10 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
   const [loading, setLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedWorkers, setSelectedWorkers] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "error" });
 
   const handleOpen = () => {
     setOpen(true);
-    // Clear any previous state
     setFirstName("");
     setLastName("");
     setSearchResults([]);
@@ -56,13 +66,21 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
   };
 
   const handleSearch = async () => {
-    if (!firstName.trim() || !lastName.trim()) return;
+    const fName = sanitizeInput(firstName.trim());
+    const lName = sanitizeInput(lastName.trim());
+    if (!fName || !lName) {
+      setSnackbar({ open: true, message: "Please enter both first and last names.", severity: "error" });
+      return;
+    }
     setLoading(true);
     try {
-      const results = await fetchWorkerNames(firstName.trim(), lastName.trim());
+      const results = await fetchWorkerNames(fName, lName);
+      if (results.length === 0) {
+        setSnackbar({ open: true, message: "No workers found for that name.", severity: "error" });
+      }
       setSearchResults(results);
     } catch (error) {
-      console.error("Error searching workers:", error);
+      setSnackbar({ open: true, message: "Error fetching workers.", severity: "error" });
       setSearchResults([]);
     } finally {
       setLoading(false);
@@ -70,9 +88,7 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
   };
 
   const handleToggle = (worker) => {
-    const currentIndex = selectedWorkers.findIndex(
-      (w) => w.value === worker.value
-    );
+    const currentIndex = selectedWorkers.findIndex((w) => w.value === worker.value);
     let newSelected = [];
     if (currentIndex === -1) {
       newSelected = [...selectedWorkers, worker];
@@ -82,10 +98,22 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
     setSelectedWorkers(newSelected);
   };
 
-  // When done, update cell value (as comma-separated names) and close
+  // Helper to update the cell value
+  const updateCellValue = (newValue) => {
+    // MRT v3 sometimes does not supply cell.setValue.
+    if (cell && typeof cell.setValue === "function") {
+      cell.setValue(newValue);
+    } else if (cell?.column?.columnDef?.meta?.updateCellValue) {
+      // Fallback: use the update function from meta if available.
+      cell.column.columnDef.meta.updateCellValue(cell, newValue);
+    } else {
+      console.error("No update function available for cell.");
+    }
+  };
+
   const handleDone = () => {
     const names = selectedWorkers.map((w) => w.value).join(", ");
-    cell.setValue(names);
+    updateCellValue(names);
     handleClose();
   };
 
@@ -129,11 +157,7 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
                       <ListItemIcon>
                         <Checkbox
                           edge="start"
-                          checked={
-                            selectedWorkers.findIndex(
-                              (w) => w.value === worker.value
-                            ) !== -1
-                          }
+                          checked={selectedWorkers.findIndex((w) => w.value === worker.value) !== -1}
                           tabIndex={-1}
                           disableRipple
                           inputProps={{ "aria-labelledby": labelId }}
@@ -158,12 +182,25 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
           </Button>
         </DialogActions>
       </Dialog>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+      >
+        <Alert
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 };
 
 /* -------------------------------------------------------------------------- */
-/*                    CSFScopeTable Component (Nested Tables)               */
+/*                   CSFScopeTable Component (Nested Tables)                */
 /* -------------------------------------------------------------------------- */
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
@@ -196,7 +233,7 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // API call to fetch Worker Names – uses FirstName and LastName parameters.
+  // API call to fetch Worker Names – uses sanitized first and last name.
   const fetchWorkerNames = async (firstName, lastName) => {
     try {
       const response = await axios.get(`/api/GetWorkerName`, {
@@ -263,24 +300,16 @@ const CSFScopeTable = () => {
       {
         accessorKey: "businessUnitOwner",
         header: "BU Owner",
-        // Use modal editor for multiple selection
+        // Use our modal editor for multiple selection
         Edit: ({ cell }) => (
-          <WorkerNamesModalEdit
-            cell={cell}
-            label="BU Owner"
-            fetchWorkerNames={fetchWorkerNames}
-          />
+          <WorkerNamesModalEdit cell={cell} label="BU Owner" fetchWorkerNames={fetchWorkerNames} />
         ),
       },
       {
         accessorKey: "auditorSubcatCustodian",
         header: "Auditor Custodian",
         Edit: ({ cell }) => (
-          <WorkerNamesModalEdit
-            cell={cell}
-            label="Auditor Custodian"
-            fetchWorkerNames={fetchWorkerNames}
-          />
+          <WorkerNamesModalEdit cell={cell} label="Auditor Custodian" fetchWorkerNames={fetchWorkerNames} />
         ),
       },
       {
@@ -421,7 +450,7 @@ const CSFScopeTable = () => {
                   <strong>Consumer:</strong> Receives services from other BUs.
                 </li>
                 <li>
-                  <strong>Both:</strong> Acts as both Provider &amp; Consumer.
+                  <strong>Both:</strong> Acts as both Provider & Consumer.
                 </li>
                 <li>
                   <strong>Inheritor:</strong> Inherits control from another BU.
