@@ -30,28 +30,29 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
 const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*                         Helper: sanitizeInput                              */
+/*                          Helper: sanitizeInput                             */
 /* -------------------------------------------------------------------------- */
-const sanitizeInput = (str) => {
-  // Remove angle brackets to mitigate XSS; React escapes by default.
-  return str.replace(/[<>]/g, "");
-};
+const sanitizeInput = (str) => str.replace(/[<>]/g, "");
 
 /* -------------------------------------------------------------------------- */
-/*            WorkerNamesModalEdit – Modal for Worker Search                  */
+/*                WorkerNamesModalEdit – Modal for Worker Search              */
 /* -------------------------------------------------------------------------- */
-// This modal now shows two text fields (FirstName & LastName), and a Search button.
-// The API is called only after clicking Search, and results are shown in a list with checkboxes.
-// Multiple selections are allowed. If an API error occurs or no workers are found,
-// a Snackbar toaster displays the error.
-const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
+// This modal shows two text fields (FirstName & LastName) plus a Search button.
+// The API is only called when Search is clicked. Search results (with extra details)
+// are displayed as a list with checkboxes. Multiple selections are allowed.
+// When Done is clicked, the provided updateCell function is called.
+const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedWorkers, setSelectedWorkers] = useState([]);
-  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "error" });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "error",
+  });
 
   const handleOpen = () => {
     setOpen(true);
@@ -69,18 +70,30 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
     const fName = sanitizeInput(firstName.trim());
     const lName = sanitizeInput(lastName.trim());
     if (!fName || !lName) {
-      setSnackbar({ open: true, message: "Please enter both first and last names.", severity: "error" });
+      setSnackbar({
+        open: true,
+        message: "Please enter both first and last names.",
+        severity: "error",
+      });
       return;
     }
     setLoading(true);
     try {
       const results = await fetchWorkerNames(fName, lName);
       if (results.length === 0) {
-        setSnackbar({ open: true, message: "No workers found for that name.", severity: "error" });
+        setSnackbar({
+          open: true,
+          message: "No workers found for that name.",
+          severity: "error",
+        });
       }
       setSearchResults(results);
     } catch (error) {
-      setSnackbar({ open: true, message: "Error fetching workers.", severity: "error" });
+      setSnackbar({
+        open: true,
+        message: "Error fetching workers.",
+        severity: "error",
+      });
       setSearchResults([]);
     } finally {
       setLoading(false);
@@ -88,7 +101,9 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
   };
 
   const handleToggle = (worker) => {
-    const currentIndex = selectedWorkers.findIndex((w) => w.value === worker.value);
+    const currentIndex = selectedWorkers.findIndex(
+      (w) => w.value === worker.value
+    );
     let newSelected = [];
     if (currentIndex === -1) {
       newSelected = [...selectedWorkers, worker];
@@ -98,22 +113,15 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
     setSelectedWorkers(newSelected);
   };
 
-  // Helper to update the cell value
-  const updateCellValue = (newValue) => {
-    // MRT v3 sometimes does not supply cell.setValue.
-    if (cell && typeof cell.setValue === "function") {
-      cell.setValue(newValue);
-    } else if (cell?.column?.columnDef?.meta?.updateCellValue) {
-      // Fallback: use the update function from meta if available.
-      cell.column.columnDef.meta.updateCellValue(cell, newValue);
+  const handleDone = () => {
+    const names = selectedWorkers.map((w) => w.value).join(", ");
+    if (typeof updateCell === "function") {
+      updateCell(names);
+    } else if (cell && typeof cell.setValue === "function") {
+      cell.setValue(names);
     } else {
       console.error("No update function available for cell.");
     }
-  };
-
-  const handleDone = () => {
-    const names = selectedWorkers.map((w) => w.value).join(", ");
-    updateCellValue(names);
     handleClose();
   };
 
@@ -139,7 +147,11 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
               fullWidth
             />
           </Box>
-          <Button variant="contained" onClick={handleSearch} disabled={loading}>
+          <Button
+            variant="contained"
+            onClick={handleSearch}
+            disabled={loading}
+          >
             {loading ? <CircularProgress size={24} /> : "Search"}
           </Button>
           {searchResults.length > 0 && (
@@ -157,7 +169,11 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
                       <ListItemIcon>
                         <Checkbox
                           edge="start"
-                          checked={selectedWorkers.findIndex((w) => w.value === worker.value) !== -1}
+                          checked={
+                            selectedWorkers.findIndex(
+                              (w) => w.value === worker.value
+                            ) !== -1
+                          }
                           tabIndex={-1}
                           disableRipple
                           inputProps={{ "aria-labelledby": labelId }}
@@ -185,10 +201,14 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        onClose={() =>
+          setSnackbar((prev) => ({ ...prev, open: false }))
+        }
       >
         <Alert
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          onClose={() =>
+            setSnackbar((prev) => ({ ...prev, open: false }))
+          }
           severity={snackbar.severity}
           sx={{ width: "100%" }}
         >
@@ -200,7 +220,206 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                   CSFScopeTable Component (Nested Tables)                */
+/*                NestedBUScopeTable Component (Level 2 & 3)                  */
+/* -------------------------------------------------------------------------- */
+const NestedBUScopeTable = ({
+  businessUnits,
+  subcatIndex,
+  updateBusinessUnitCell,
+  fetchWorkerNames,
+}) => {
+  const businessUnitColumns = useMemo(
+    () => [
+      {
+        accessorKey: "businessUnitAbbr",
+        header: "BU",
+        enableEditing: false,
+      },
+      {
+        accessorKey: "businessUnitOwner",
+        header: "BU Owner",
+        Edit: ({ cell, row }) => (
+          <WorkerNamesModalEdit
+            cell={cell}
+            label="BU Owner"
+            fetchWorkerNames={fetchWorkerNames}
+            updateCell={(newValue) =>
+              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
+            }
+          />
+        ),
+      },
+      {
+        accessorKey: "auditorSubcatCustodian",
+        header: "Auditor Custodian",
+        Edit: ({ cell, row }) => (
+          <WorkerNamesModalEdit
+            cell={cell}
+            label="Auditor Custodian"
+            fetchWorkerNames={fetchWorkerNames}
+            updateCell={(newValue) =>
+              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
+            }
+          />
+        ),
+      },
+      {
+        accessorKey: "auditorIsInScope",
+        header: "In Scope?",
+        Edit: ({ cell }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => {
+              const newValue = event.target.value;
+              cell.setValue(newValue);
+              if (newValue === "Yes") {
+                cell.row.getCell("auditorJustification").setValue("");
+              }
+            }}
+          >
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </TextField>
+        ),
+      },
+      {
+        accessorKey: "auditorJustification",
+        header: "Justification",
+        Edit: ({ cell, row }) => (
+          <TextField
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) =>
+              cell.setValue(event.target.value)
+            }
+            disabled={row.getValue("auditorIsInScope") !== "No"}
+          />
+        ),
+      },
+      {
+        accessorKey: "maturityProjection",
+        header: "Maturity Projection",
+        Edit: ({ cell }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) =>
+              cell.setValue(event.target.value)
+            }
+          >
+            {MaturityProjectionOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
+        ),
+      },
+      {
+        accessorKey: "auditorProfileType",
+        header: "Profile Type",
+        Edit: ({ cell, row }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => {
+              const newValue = event.target.value;
+              cell.setValue(newValue);
+              if (!["Consumer", "Both"].includes(newValue)) {
+                cell.row.getCell("auditorConsumingFromBusinessUnit").setValue("");
+              }
+            }}
+          >
+            {ProfileTypeOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
+        ),
+      },
+      {
+        accessorKey: "auditorConsumingFromBusinessUnit",
+        header: "Consuming From BU",
+        Edit: ({ cell, row }) => (
+          <TextField
+            select
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => cell.setValue(event.target.value)}
+            disabled={
+              row.getValue("auditorProfileType") !== "Consumer" &&
+              row.getValue("auditorProfileType") !== "Both"
+            }
+          >
+            {BusinessUnitOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
+        ),
+      },
+      {
+        accessorKey: "departmentName",
+        header: "Department Name",
+        Edit: ({ cell }) => (
+          <TextField
+            defaultValue={cell.getValue() || ""}
+            onChange={(event) => cell.setValue(event.target.value)}
+          />
+        ),
+      },
+    ],
+    [updateBusinessUnitCell, subcatIndex, fetchWorkerNames]
+  );
+
+  const nestedTable = useMaterialReactTable({
+    columns: businessUnitColumns,
+    data: businessUnits,
+    enableEditing: true,
+    editDisplayMode: "row",
+    muiTableBodyCellEditTextFieldProps: { variant: "standard" },
+    meta: {
+      updateData: (rowIndex, columnId, value) =>
+        updateBusinessUnitCell(subcatIndex, rowIndex, columnId, value),
+    },
+    renderDetailPanel: ({ row }) => (
+      <Box
+        p={2}
+        sx={{
+          backgroundColor: "#f4f4f4",
+          borderRadius: "8px",
+          marginTop: "10px",
+        }}
+      >
+        <Typography variant="h6">Profile Type Definitions</Typography>
+        <ul>
+          <li>
+            <strong>Provider:</strong> Supplies services to other BUs.
+          </li>
+          <li>
+            <strong>Consumer:</strong> Receives services from other BUs.
+          </li>
+          <li>
+            <strong>Both:</strong> Acts as both Provider & Consumer.
+          </li>
+          <li>
+            <strong>Inheritor:</strong> Inherits control from another BU.
+          </li>
+        </ul>
+      </Box>
+    ),
+  });
+
+  return (
+    <Box>
+      <MaterialReactTable table={nestedTable} />
+    </Box>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                  CSFScopeTable Component (Level 1)                         */
 /* -------------------------------------------------------------------------- */
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
@@ -289,178 +508,34 @@ const CSFScopeTable = () => {
     [tableData]
   );
 
-  // LEVEL 2: Business Unit Columns (Fully Editable)
-  const businessUnitColumns = useMemo(
-    () => [
-      {
-        accessorKey: "businessUnitAbbr",
-        header: "BU",
-        enableEditing: false,
-      },
-      {
-        accessorKey: "businessUnitOwner",
-        header: "BU Owner",
-        // Use our modal editor for multiple selection
-        Edit: ({ cell }) => (
-          <WorkerNamesModalEdit cell={cell} label="BU Owner" fetchWorkerNames={fetchWorkerNames} />
-        ),
-      },
-      {
-        accessorKey: "auditorSubcatCustodian",
-        header: "Auditor Custodian",
-        Edit: ({ cell }) => (
-          <WorkerNamesModalEdit cell={cell} label="Auditor Custodian" fetchWorkerNames={fetchWorkerNames} />
-        ),
-      },
-      {
-        accessorKey: "auditorIsInScope",
-        header: "In Scope?",
-        Edit: ({ cell }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => {
-              const newValue = event.target.value;
-              cell.setValue(newValue);
-              if (newValue === "Yes") {
-                cell.row.getCell("auditorJustification").setValue("");
-              }
-            }}
-          >
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "auditorJustification",
-        header: "Justification",
-        Edit: ({ cell, row }) => (
-          <TextField
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-            disabled={row.getValue("auditorIsInScope") !== "No"}
-          />
-        ),
-      },
-      {
-        accessorKey: "maturityProjection",
-        header: "Maturity Projection",
-        Edit: ({ cell }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-          >
-            {MaturityProjectionOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "auditorProfileType",
-        header: "Profile Type",
-        Edit: ({ cell, row }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => {
-              const newValue = event.target.value;
-              cell.setValue(newValue);
-              if (!["Consumer", "Both"].includes(newValue)) {
-                cell.row.getCell("auditorConsumingFromBusinessUnit").setValue("");
-              }
-            }}
-          >
-            {ProfileTypeOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "auditorConsumingFromBusinessUnit",
-        header: "Consuming From BU",
-        Edit: ({ cell, row }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-            disabled={
-              row.getValue("auditorProfileType") !== "Consumer" &&
-              row.getValue("auditorProfileType") !== "Both"
-            }
-          >
-            {BusinessUnitOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "departmentName",
-        header: "Department Name",
-        Edit: ({ cell }) => (
-          <TextField
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-          />
-        ),
-      },
-    ],
-    [fetchWorkerNames]
-  );
+  // Create main table instance using MRT hook (Level 1)
+  const mainTable = useMaterialReactTable({
+    columns: subcategoryColumns,
+    data: tableData,
+    enableRowExpansion: true,
+    renderRowSubComponent: ({ row }) => (
+      <NestedBUScopeTable
+        businessUnits={row.original.businessUnits}
+        subcatIndex={row.index}
+        updateBusinessUnitCell={(subcatIdx, rowIdx, columnId, value) => {
+          setTableData((prev) => {
+            const newData = [...prev];
+            newData[subcatIdx].businessUnits[rowIdx] = {
+              ...newData[subcatIdx].businessUnits[rowIdx],
+              [columnId]: value,
+            };
+            return newData;
+          });
+        }}
+        fetchWorkerNames={fetchWorkerNames}
+      />
+    ),
+  });
 
   return (
-    <MaterialReactTable
-      columns={subcategoryColumns}
-      data={tableData}
-      enableFilters
-      enableEditing={false}
-      renderDetailPanel={({ row }) => (
-        <MaterialReactTable
-          columns={businessUnitColumns}
-          data={row.original.businessUnits}
-          enableEditing
-          editDisplayMode="row"
-          muiTableContainerProps={{ sx: { overflowX: "auto" } }}
-          // LEVEL 3: Render a detail panel under each BU row with profile type definitions
-          renderDetailPanel={() => (
-            <Box
-              p={2}
-              sx={{
-                backgroundColor: "#f4f4f4",
-                borderRadius: "8px",
-                marginTop: "10px",
-              }}
-            >
-              <Typography variant="h6">Profile Type Definitions</Typography>
-              <ul>
-                <li>
-                  <strong>Provider:</strong> Supplies services to other BUs.
-                </li>
-                <li>
-                  <strong>Consumer:</strong> Receives services from other BUs.
-                </li>
-                <li>
-                  <strong>Both:</strong> Acts as both Provider & Consumer.
-                </li>
-                <li>
-                  <strong>Inheritor:</strong> Inherits control from another BU.
-                </li>
-              </ul>
-            </Box>
-          )}
-        />
-      )}
-    />
+    <Box sx={{ p: 2 }}>
+      <MaterialReactTable table={mainTable} />
+    </Box>
   );
 };
 
