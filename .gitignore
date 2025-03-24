@@ -27,17 +27,17 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
 const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*                           Helper: sanitizeInput                            */
+/*                         Helper: sanitizeInput                              */
 /* -------------------------------------------------------------------------- */
 const sanitizeInput = (str) => str.replace(/[<>]/g, "");
 
 /* -------------------------------------------------------------------------- */
 /*          WorkerNamesModalEdit – Modal for Worker Search                    */
 /* -------------------------------------------------------------------------- */
-// This modal displays two text fields (First Name and Last Name) and a Search button.
-// The API is called only when the user clicks Search. The returned results (with extra details)
-// are displayed in a list with checkboxes so that multiple selections are allowed.
-// When the user clicks "Done", the provided updateCell function is invoked to update the cell.
+// This modal shows two text fields (First Name & Last Name) and a Search button.
+// It calls the API only when Search is clicked and then displays results
+// in a list with checkboxes so that multiple selections are allowed.
+// When "Done" is clicked, it calls the provided updateCell function to update the cell.
 const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
@@ -106,16 +106,11 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
     }
   };
 
+  // When "Done" is clicked, update the cell value on the client side only.
   const handleDone = () => {
-    const names = selectedWorkers.map((w) => w.value).join(", ");
-    // Use the explicit updateCell function if provided; otherwise try cell.setValue.
-    if (typeof updateCell === "function") {
-      updateCell(names);
-    } else if (cell && typeof cell.setValue === "function") {
-      cell.setValue(names);
-    } else {
-      console.error("No update function available for cell.");
-    }
+    const newValue = selectedWorkers.map((w) => w.value).join(", ");
+    // Always use the explicit updateCell function.
+    updateCell(newValue);
     handleClose();
   };
 
@@ -159,9 +154,7 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
                       <ListItemIcon>
                         <Checkbox
                           edge="start"
-                          checked={
-                            selectedWorkers.some((w) => w.value === worker.value)
-                          }
+                          checked={selectedWorkers.some((w) => w.value === worker.value)}
                           tabIndex={-1}
                           disableRipple
                           inputProps={{ "aria-labelledby": labelId }}
@@ -204,108 +197,29 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
 };
 
 /* -------------------------------------------------------------------------- */
-/*               CSFScopeTable Component (Levels 1, 2, & 3)                   */
+/*        NestedBUScopeTable Component (Level 2 & Detail Panel - Level 3)       */
 /* -------------------------------------------------------------------------- */
-const CSFScopeTable = () => {
-  const [tableData, setTableData] = useState([]);
-
-  // Fetch ScopeData and group by subcategoryId (Level 1)
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get("/api/ScopeData");
-        const groupedData = Object.values(
-          response.data.reduce((acc, item) => {
-            if (!acc[item.subcategoryId]) {
-              acc[item.subcategoryId] = {
-                subcategoryId: item.subcategoryId,
-                subcategoryName: item.subcategoryName,
-                subcategoryDescription: item.subcategoryDescription,
-                relatedSubcategories: item.relatedCsf1_1Subcategories,
-                businessUnits: [],
-              };
-            }
-            acc[item.subcategoryId].businessUnits.push(item);
-            return acc;
-          }, {})
-        );
-        setTableData(groupedData);
-      } catch (error) {
-        console.error("Error fetching scope data:", error);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // API call to fetch Worker Names – using sanitized first and last names.
-  const fetchWorkerNames = async (firstName, lastName) => {
-    try {
-      const response = await axios.get(`/api/GetWorkerName`, {
-        params: { FirstName: firstName, LastName: lastName },
-      });
-      return response.data.map((worker) => ({
-        label: `${worker.NameFull} - ${worker.JobTitle} (Supervisor: ${worker.SupervisorFullName})`,
-        value: worker.NameFull,
-        jobTitle: worker.JobTitle,
-        supervisorFullName: worker.SupervisorFullName,
-      }));
-    } catch (error) {
-      console.error("Error fetching worker names:", error);
-      return [];
-    }
-  };
-
-  // LEVEL 1: Subcategory Columns
-  const subcategoryColumns = useMemo(
-    () => [
-      {
-        accessorKey: "subcategoryName",
-        header: "Subcategory",
-        size: 120,
-        filterVariant: "multi-select",
-        filterSelectOptions: [
-          ...new Set(tableData.map((row) => row.subcategoryName)),
-        ],
-      },
-      {
-        accessorKey: "subcategoryDescription",
-        header: "Description",
-        size: 300,
-        filterVariant: "text",
-        Cell: ({ cell }) => (
-          <div
-            style={{
-              whiteSpace: "normal",
-              wordWrap: "break-word",
-              overflowWrap: "break-word",
-            }}
-          >
-            {cell.getValue()}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "relatedSubcategories",
-        header: "Related Subcategories",
-        filterVariant: "text",
-      },
-    ],
-    [tableData]
-  );
-
-  // LEVEL 2: Business Unit Columns (with our modal editors)
+const NestedBUScopeTable = ({ businessUnits, subcatIndex, updateBusinessUnitCell, fetchWorkerNames }) => {
+  // Define Level 2 columns for the Business Unit table.
+  // Notice we use our custom modal editor in the Edit property.
   const businessUnitColumns = useMemo(
     () => [
-      { accessorKey: "businessUnitAbbr", header: "BU", enableEditing: false },
+      {
+        accessorKey: "businessUnitAbbr",
+        header: "BU",
+        enableEditing: false,
+      },
       {
         accessorKey: "businessUnitOwner",
         header: "BU Owner",
-        // Use our modal editor for multiple selections
         Edit: ({ cell, row }) => (
           <WorkerNamesModalEdit
             cell={cell}
             label="BU Owner"
             fetchWorkerNames={fetchWorkerNames}
+            updateCell={(newValue) =>
+              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
+            }
           />
         ),
       },
@@ -317,6 +231,9 @@ const CSFScopeTable = () => {
             cell={cell}
             label="Auditor Custodian"
             fetchWorkerNames={fetchWorkerNames}
+            updateCell={(newValue) =>
+              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
+            }
           />
         ),
       },
@@ -423,52 +340,126 @@ const CSFScopeTable = () => {
         ),
       },
     ],
-    [fetchWorkerNames]
+    [updateBusinessUnitCell, subcatIndex, fetchWorkerNames]
   );
 
+  // IMPORTANT: We switch to cell editing mode so that custom editors (and our updateCell function)
+  // are always rendered. This ensures that updateCell is available when the modal is used.
+  const nestedTableProps = {
+    columns: businessUnitColumns,
+    data: businessUnits,
+    enableEditing: true,
+    editDisplayMode: "cell", // changed from "row" to "cell"
+    muiTableBodyCellEditTextFieldProps: { variant: "standard" },
+    meta: {
+      updateData: (rowIndex, columnId, value) =>
+        updateBusinessUnitCell(subcatIndex, rowIndex, columnId, value),
+    },
+    renderDetailPanel: ({ row }) => (
+      <Box
+        p={2}
+        sx={{
+          backgroundColor: "#f4f4f4",
+          borderRadius: "8px",
+          marginTop: "10px",
+        }}
+      >
+        <Typography variant="h6">Profile Type Definitions</Typography>
+        <ul>
+          <li>
+            <strong>Provider:</strong> Supplies services to other BUs.
+          </li>
+          <li>
+            <strong>Consumer:</strong> Receives services from other BUs.
+          </li>
+          <li>
+            <strong>Both:</strong> Acts as both Provider & Consumer.
+          </li>
+          <li>
+            <strong>Inheritor:</strong> Inherits control from another BU.
+          </li>
+        </ul>
+      </Box>
+    ),
+  };
+
   return (
-    <MaterialReactTable
-      columns={subcategoryColumns}
-      data={tableData}
-      enableFilters
-      enableEditing={false}
-      renderDetailPanel={({ row }) => (
-        <MaterialReactTable
-          columns={businessUnitColumns}
-          data={row.original.businessUnits}
-          enableEditing
-          editDisplayMode="row"
-          muiTableContainerProps={{ sx: { overflowX: "auto" } }}
-          renderDetailPanel={() => (
-            <Box
-              p={2}
-              sx={{
-                backgroundColor: "#f4f4f4",
-                borderRadius: "8px",
-                marginTop: "10px",
-              }}
-            >
-              <Typography variant="h6">Profile Type Definitions</Typography>
-              <ul>
-                <li>
-                  <strong>Provider:</strong> Supplies services to other BUs.
-                </li>
-                <li>
-                  <strong>Consumer:</strong> Receives services from other BUs.
-                </li>
-                <li>
-                  <strong>Both:</strong> Acts as both Provider & Consumer.
-                </li>
-                <li>
-                  <strong>Inheritor:</strong> Inherits control from another BU.
-                </li>
-              </ul>
-            </Box>
-          )}
-        />
-      )}
-    />
+    <Box>
+      <MaterialReactTable {...nestedTableProps} />
+    </Box>
   );
 };
 
-export default CSFScopeTable;
+/* -------------------------------------------------------------------------- */
+/*             CSFScopeTable Component (Level 1 – Main Table)                 */
+/* -------------------------------------------------------------------------- */
+const CSFScopeTable = () => {
+  const [tableData, setTableData] = useState([]);
+
+  // Fetch ScopeData and group by subcategoryId
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get("/api/ScopeData");
+        const groupedData = Object.values(
+          response.data.reduce((acc, item) => {
+            if (!acc[item.subcategoryId]) {
+              acc[item.subcategoryId] = {
+                subcategoryId: item.subcategoryId,
+                subcategoryName: item.subcategoryName,
+                subcategoryDescription: item.subcategoryDescription,
+                relatedSubcategories: item.relatedCsf1_1Subcategories,
+                businessUnits: [],
+              };
+            }
+            acc[item.subcategoryId].businessUnits.push(item);
+            return acc;
+          }, {})
+        );
+        setTableData(groupedData);
+      } catch (error) {
+        console.error("Error fetching scope data:", error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // API call to fetch Worker Names – using sanitized first and last names.
+  const fetchWorkerNames = async (firstName, lastName) => {
+    try {
+      const response = await axios.get(`/api/GetWorkerName`, {
+        params: { FirstName: firstName, LastName: lastName },
+      });
+      return response.data.map((worker) => ({
+        label: `${worker.NameFull} - ${worker.JobTitle} (Supervisor: ${worker.SupervisorFullName})`,
+        value: worker.NameFull,
+        jobTitle: worker.JobTitle,
+        supervisorFullName: worker.SupervisorFullName,
+      }));
+    } catch (error) {
+      console.error("Error fetching worker names:", error);
+      return [];
+    }
+  };
+
+  // LEVEL 1: Subcategory Columns
+  const subcategoryColumns = useMemo(
+    () => [
+      {
+        accessorKey: "subcategoryName",
+        header: "Subcategory",
+        size: 120,
+        filterVariant: "multi-select",
+        filterSelectOptions: [
+          ...new Set(tableData.map((row) => row.subcategoryName)),
+        ],
+      },
+      {
+        accessorKey: "subcategoryDescription",
+        header: "Description",
+        size: 300,
+        filterVariant: "text",
+        Cell: ({ cell }) => (
+          <div
+            style={{
+              whiteSpace: "normal",
