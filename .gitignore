@@ -6,7 +6,6 @@ import {
 import {
   MenuItem,
   TextField,
-  Autocomplete,
   Box,
   Typography,
   Button,
@@ -14,63 +13,80 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Checkbox,
   CircularProgress,
 } from "@mui/material";
 import axios from "axios";
 
-// Options for dropdowns
+// Dropdown options
 const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
 const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
 const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*                WorkerNamesModalEdit (Modal Editor)                       */
+/*              WorkerNamesModalEdit – Modal for Worker Search                */
 /* -------------------------------------------------------------------------- */
-// This modal is used for BU Owner and Auditor Custodian edits.
-// It calls the WorkerInfo API (passing FirstName & LastName) to search among 200K+ records.
-// It displays additional details (Job Title, Supervisor) in the option list.
-// It supports multiple selections.
+// This modal provides two text fields (FirstName & LastName) and a Search button.
+// It calls the API only when Search is clicked, then displays results in a list
+// with checkboxes so multiple selections can be made. Each result shows additional
+// details (JobTitle and SupervisorFullName) so users can choose correctly.
 const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState("");
-  const [options, setOptions] = useState([]);
-
-  // Convert current cell value (a comma-separated string) into an array of worker objects.
-  const currentValue =
-    cell.getValue() && cell.getValue().length > 0
-      ? cell.getValue().split(", ").map((name) => ({
-          value: name,
-          label: name,
-          jobTitle: "",
-          supervisorFullName: "",
-        }))
-      : [];
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedWorkers, setSelectedWorkers] = useState([]);
 
   const handleOpen = () => {
     setOpen(true);
-    setInputValue("");
-    setOptions([]);
+    // Clear any previous state
+    setFirstName("");
+    setLastName("");
+    setSearchResults([]);
+    setSelectedWorkers([]);
   };
 
   const handleClose = () => {
     setOpen(false);
   };
 
-  // When the input changes, call the API if it contains a space (assumed "First Last")
-  const handleInputChange = async (event, newValue) => {
-    setInputValue(newValue);
-    if (newValue.includes(" ")) {
-      const results = await fetchWorkerNames(newValue);
-      setOptions(results);
-    } else {
-      setOptions([]);
+  const handleSearch = async () => {
+    if (!firstName.trim() || !lastName.trim()) return;
+    setLoading(true);
+    try {
+      const results = await fetchWorkerNames(firstName.trim(), lastName.trim());
+      setSearchResults(results);
+    } catch (error) {
+      console.error("Error searching workers:", error);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // When selection changes, update the cell value (storing as a comma-separated string)
-  const handleSelectChange = (event, newSelected) => {
-    const names = newSelected.map((worker) => worker.value);
-    cell.setValue(names.join(", "));
+  const handleToggle = (worker) => {
+    const currentIndex = selectedWorkers.findIndex(
+      (w) => w.value === worker.value
+    );
+    let newSelected = [];
+    if (currentIndex === -1) {
+      newSelected = [...selectedWorkers, worker];
+    } else {
+      newSelected = selectedWorkers.filter((w) => w.value !== worker.value);
+    }
+    setSelectedWorkers(newSelected);
+  };
+
+  // When done, update cell value (as comma-separated names) and close
+  const handleDone = () => {
+    const names = selectedWorkers.map((w) => w.value).join(", ");
+    cell.setValue(names);
+    handleClose();
   };
 
   return (
@@ -81,27 +97,65 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
         <DialogTitle>Edit {label}</DialogTitle>
         <DialogContent>
-          <Autocomplete
-            multiple
-            options={options}
-            getOptionLabel={(option) =>
-              `${option.value} - ${option.jobTitle} (Supervisor: ${option.supervisorFullName})`
-            }
-            value={currentValue}
-            onChange={handleSelectChange}
-            onInputChange={handleInputChange}
-            filterSelectedOptions
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label={`${label} (Enter "First Last")`}
-                placeholder="Search..."
-              />
-            )}
-          />
+          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+            <TextField
+              label="First Name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Last Name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              fullWidth
+            />
+          </Box>
+          <Button variant="contained" onClick={handleSearch} disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : "Search"}
+          </Button>
+          {searchResults.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1">Select Worker(s):</Typography>
+              <List>
+                {searchResults.map((worker) => {
+                  const labelId = `checkbox-list-label-${worker.value}`;
+                  return (
+                    <ListItem
+                      key={worker.value}
+                      button
+                      onClick={() => handleToggle(worker)}
+                    >
+                      <ListItemIcon>
+                        <Checkbox
+                          edge="start"
+                          checked={
+                            selectedWorkers.findIndex(
+                              (w) => w.value === worker.value
+                            ) !== -1
+                          }
+                          tabIndex={-1}
+                          disableRipple
+                          inputProps={{ "aria-labelledby": labelId }}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        id={labelId}
+                        primary={worker.value}
+                        secondary={`Job: ${worker.jobTitle} | Supervisor: ${worker.supervisorFullName}`}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Done</Button>
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleDone} variant="contained">
+            Done
+          </Button>
         </DialogActions>
       </Dialog>
     </>
@@ -109,7 +163,7 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                    CSFScopeTable Component (Nested Table)                */
+/*                    CSFScopeTable Component (Nested Tables)               */
 /* -------------------------------------------------------------------------- */
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
@@ -142,10 +196,8 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // API call to fetch Worker Names – passing FirstName and LastName as parameters.
-  const fetchWorkerNames = async (inputValue) => {
-    if (!inputValue.includes(" ")) return [];
-    const [firstName, lastName] = inputValue.split(" ");
+  // API call to fetch Worker Names – uses FirstName and LastName parameters.
+  const fetchWorkerNames = async (firstName, lastName) => {
     try {
       const response = await axios.get(`/api/GetWorkerName`, {
         params: { FirstName: firstName, LastName: lastName },
@@ -162,7 +214,7 @@ const CSFScopeTable = () => {
     }
   };
 
-  // LEVEL 1: Subcategory Level (Display Only)
+  // LEVEL 1: Subcategory Columns (Display Only with Filtering)
   const subcategoryColumns = useMemo(
     () => [
       {
@@ -200,7 +252,7 @@ const CSFScopeTable = () => {
     [tableData]
   );
 
-  // LEVEL 2: Business Unit Level (Fully Editable)
+  // LEVEL 2: Business Unit Columns (Fully Editable)
   const businessUnitColumns = useMemo(
     () => [
       {
@@ -211,7 +263,7 @@ const CSFScopeTable = () => {
       {
         accessorKey: "businessUnitOwner",
         header: "BU Owner",
-        // Use the modal for multiple selection editing
+        // Use modal editor for multiple selection
         Edit: ({ cell }) => (
           <WorkerNamesModalEdit
             cell={cell}
@@ -241,7 +293,6 @@ const CSFScopeTable = () => {
             onChange={(event) => {
               const newValue = event.target.value;
               cell.setValue(newValue);
-              // If "Yes", clear justification.
               if (newValue === "Yes") {
                 cell.row.getCell("auditorJustification").setValue("");
               }
