@@ -27,13 +27,13 @@ const profileTypeDefinitions = {
 /*                           Custom Hooks                                     */
 /* -------------------------------------------------------------------------- */
 
-// Custom hook for fetching and grouping BUScopeData
+// Hook to fetch and group BUScopeData
 const useFetchBUScopeData = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchBUScopeData = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.get('/api/GetBUScopeData');
@@ -61,19 +61,19 @@ const useFetchBUScopeData = () => {
   }, []);
 
   useEffect(() => {
-    fetchBUScopeData();
-  }, [fetchBUScopeData]);
+    fetchData();
+  }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchBUScopeData };
+  return { data, loading, error };
 };
 
-// Custom hook for fetching WorkerInfo
+// Hook to fetch Worker Info for autocomplete options
 const useFetchWorkerInfo = () => {
   const [workerNames, setWorkerNames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchWorkerInfo = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.get('/api/GetWorkerInfo');
@@ -88,14 +88,14 @@ const useFetchWorkerInfo = () => {
   }, []);
 
   useEffect(() => {
-    fetchWorkerInfo();
-  }, [fetchWorkerInfo]);
+    fetchData();
+  }, [fetchData]);
 
-  return { workerNames, loading, error, refetch: fetchWorkerInfo };
+  return { workerNames, loading, error };
 };
 
 /* -------------------------------------------------------------------------- */
-/*                   BusinessUnitsTable Component (Level 2/3)                 */
+/*               BusinessUnitsTable Component (Level 2 & 3)                   */
 /* -------------------------------------------------------------------------- */
 
 const BusinessUnitsTable = ({
@@ -105,7 +105,7 @@ const BusinessUnitsTable = ({
   workerNames,
   onAddBusinessUnit,
 }) => {
-  // Level 2: Define columns for Business Units
+  // Define Level 2 columns for the Business Unit table
   const buColumns = useMemo(
     () => [
       {
@@ -120,9 +120,9 @@ const BusinessUnitsTable = ({
           <Autocomplete
             options={workerNames.map((w) => w.NameFull)}
             value={cell.getValue() || ''}
-            onChange={(event, newValue) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, newValue);
-            }}
+            onChange={(event, newValue) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, newValue)
+            }
             renderInput={(params) => <TextField {...params} variant="standard" />}
           />
         ),
@@ -134,9 +134,9 @@ const BusinessUnitsTable = ({
           <Autocomplete
             options={workerNames.map((w) => w.NameFull)}
             value={cell.getValue() || ''}
-            onChange={(event, newValue) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, newValue);
-            }}
+            onChange={(event, newValue) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, newValue)
+            }
             renderInput={(params) => <TextField {...params} variant="standard" />}
           />
         ),
@@ -147,9 +147,9 @@ const BusinessUnitsTable = ({
         Cell: ({ cell, row }) => (
           <Select
             value={cell.getValue() || ''}
-            onChange={(event) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
-            }}
+            onChange={(event) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
+            }
             variant="standard"
           >
             <MenuItem value="Yes">Yes</MenuItem>
@@ -163,11 +163,11 @@ const BusinessUnitsTable = ({
         Cell: ({ cell, row }) => (
           <TextField
             value={cell.getValue() || ''}
-            onChange={(event) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
-            }}
+            onChange={(event) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
+            }
             variant="standard"
-            disabled={row.original.auditorIsInScope === 'Yes'} // Only editable if "No"
+            disabled={row.original.auditorIsInScope === 'Yes'}
           />
         ),
       },
@@ -177,9 +177,9 @@ const BusinessUnitsTable = ({
         Cell: ({ cell, row }) => (
           <Select
             value={cell.getValue() || ''}
-            onChange={(event) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
-            }}
+            onChange={(event) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
+            }
             variant="standard"
           >
             <MenuItem value="Increase">Increase</MenuItem>
@@ -194,11 +194,11 @@ const BusinessUnitsTable = ({
         Cell: ({ cell, row }) => (
           <Select
             value={cell.getValue() || ''}
-            onChange={(event) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
-            }}
+            onChange={(event) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
+            }
             variant="standard"
-            disabled={row.original.auditorIsInScope !== 'Yes'} // Enabled only when In Scope is "Yes"
+            disabled={row.original.auditorIsInScope !== 'Yes'}
           >
             <MenuItem value="Provider">Provider</MenuItem>
             <MenuItem value="Consumer">Consumer</MenuItem>
@@ -213,9 +213,9 @@ const BusinessUnitsTable = ({
         Cell: ({ cell, row }) => (
           <Select
             value={cell.getValue() || ''}
-            onChange={(event) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
-            }}
+            onChange={(event) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
+            }
             variant="standard"
             disabled={
               row.original.auditorProfileType !== 'Consumer' &&
@@ -236,9 +236,9 @@ const BusinessUnitsTable = ({
         Cell: ({ cell, row }) => (
           <TextField
             value={cell.getValue() || ''}
-            onChange={(event) => {
-              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
-            }}
+            onChange={(event) =>
+              cell.table.options.meta.updateData(row.index, cell.column.id, event.target.value)
+            }
             variant="standard"
           />
         ),
@@ -247,13 +247,14 @@ const BusinessUnitsTable = ({
     [workerNames]
   );
 
-  // Use the MRT hook to create a nested table instance
-  const table = useMaterialReactTable({
+  // Create nested table instance using the MRT hook
+  const nestedTable = useMaterialReactTable({
     columns: buColumns,
     data: businessUnits,
+    enableEditing: true,
     // Level 3: Render a detail panel for each Business Unit row
     renderDetailPanel: ({ row }) => (
-      <Box sx={{ padding: 2 }}>
+      <Box sx={{ p: 2 }}>
         <Typography variant="h6">Profile Type Definitions</Typography>
         <Typography variant="body2">
           {row.original.auditorProfileType
@@ -270,9 +271,9 @@ const BusinessUnitsTable = ({
   });
 
   return (
-    <Box sx={{ padding: 2 }}>
-      <MaterialReactTable table={table} />
-      <Button onClick={onAddBusinessUnit} sx={{ marginTop: 2 }}>
+    <Box>
+      <MaterialReactTable table={nestedTable} />
+      <Button onClick={onAddBusinessUnit} sx={{ mt: 2 }}>
         Add Business Unit
       </Button>
     </Box>
@@ -280,24 +281,22 @@ const BusinessUnitsTable = ({
 };
 
 /* -------------------------------------------------------------------------- */
-/*                  CSFScopeTable Component (Level 1)                         */
+/*                    CSFScopeTable Component (Level 1)                     */
 /* -------------------------------------------------------------------------- */
 
 const CSFScopeTable = () => {
-  // Use our custom hooks for API data
-  const { data, loading: buscopeLoading, error: buscopeError } = useFetchBUScopeData();
+  const { data, loading, error } = useFetchBUScopeData();
   const { workerNames, loading: workerLoading, error: workerError } = useFetchWorkerInfo();
-
-  // Mirror the fetched BUScopeData into state for editing
+  // Hold grouped data locally for editing
   const [tableData, setTableData] = useState([]);
   useEffect(() => {
     setTableData(data);
   }, [data]);
 
-  // Update function for nested Business Unit cell updates
+  // Function to update a cell in the nested BU table
   const updateBusinessUnitCell = useCallback((subcatIndex, rowIndex, columnId, value) => {
-    setTableData((prevData) => {
-      const newData = [...prevData];
+    setTableData((prev) => {
+      const newData = [...prev];
       newData[subcatIndex].businessUnits[rowIndex] = {
         ...newData[subcatIndex].businessUnits[rowIndex],
         [columnId]: value,
@@ -306,12 +305,12 @@ const CSFScopeTable = () => {
     });
   }, []);
 
-  // Function to add a new Business Unit row
+  // Function to add a new BU row to a subcategory
   const onAddBusinessUnit = useCallback((subcatIndex) => {
-    setTableData((prevData) => {
-      const newData = [...prevData];
+    setTableData((prev) => {
+      const newData = [...prev];
       const newRow = {
-        businessUnitAbbr: '', // Display only
+        businessUnitAbbr: '',
         businessUnitOwner: '',
         auditorSubcatCustodian: '',
         auditorIsInScope: '',
@@ -321,15 +320,12 @@ const CSFScopeTable = () => {
         auditorConsumingFromBusinessUnit: '',
         departmentName: '',
       };
-      newData[subcatIndex].businessUnits = [
-        ...newData[subcatIndex].businessUnits,
-        newRow,
-      ];
+      newData[subcatIndex].businessUnits.push(newRow);
       return newData;
     });
   }, []);
 
-  // Level 1: Main table columns for subcategory data
+  // Define Level 1 columns for the subcategory table
   const mainColumns = useMemo(
     () => [
       {
@@ -350,11 +346,12 @@ const CSFScopeTable = () => {
     []
   );
 
-  // Create main table instance using useMaterialReactTable
+  // Create main table instance using MRT hook
   const mainTable = useMaterialReactTable({
     columns: mainColumns,
     data: tableData,
-    // Render Level 2 (nested table) in the row sub-component
+    enableRowExpansion: true,
+    // Render the nested Business Units table in the row sub-component
     renderRowSubComponent: ({ row }) => (
       <BusinessUnitsTable
         businessUnits={row.original.businessUnits}
@@ -366,24 +363,24 @@ const CSFScopeTable = () => {
     ),
   });
 
-  if (buscopeLoading || workerLoading) {
+  if (loading || workerLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  if (buscopeError || workerError) {
+  if (error || workerError) {
     return (
-      <Box sx={{ padding: 2 }}>
+      <Box sx={{ p: 2 }}>
         <Typography color="error">Error loading data</Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ padding: 2 }}>
+    <Box sx={{ p: 2 }}>
       <MaterialReactTable table={mainTable} />
     </Box>
   );
