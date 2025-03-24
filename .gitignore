@@ -34,10 +34,10 @@ const sanitizeInput = (str) => str.replace(/[<>]/g, "");
 /* -------------------------------------------------------------------------- */
 /*          WorkerNamesModalEdit – Modal for Worker Search                    */
 /* -------------------------------------------------------------------------- */
-// This modal shows two text fields (First Name & Last Name) and a Search button.
-// It calls the API only when Search is clicked and then displays results
+// This component shows two text fields (First Name & Last Name) plus a Search button.
+// When Search is clicked it calls the API (using provided first/last name) and displays results
 // in a list with checkboxes so that multiple selections are allowed.
-// When "Done" is clicked, it calls the provided updateCell function to update the cell.
+// When "Done" is clicked, the provided updateCell function is invoked to update that cell's value.
 const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
@@ -106,10 +106,9 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
     }
   };
 
-  // When "Done" is clicked, update the cell value on the client side only.
+  // When "Done" is clicked, update only the client-side cell value.
   const handleDone = () => {
     const newValue = selectedWorkers.map((w) => w.value).join(", ");
-    // Always use the explicit updateCell function.
     updateCell(newValue);
     handleClose();
   };
@@ -197,11 +196,15 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
 };
 
 /* -------------------------------------------------------------------------- */
-/*        NestedBUScopeTable Component (Level 2 & Detail Panel - Level 3)       */
+/*      NestedBUScopeTable Component (Level 2 & Detail Panel - Level 3)         */
 /* -------------------------------------------------------------------------- */
-const NestedBUScopeTable = ({ businessUnits, subcatIndex, updateBusinessUnitCell, fetchWorkerNames }) => {
-  // Define Level 2 columns for the Business Unit table.
-  // Notice we use our custom modal editor in the Edit property.
+const NestedBUScopeTable = ({
+  businessUnits,
+  subcatIndex,
+  updateBusinessUnitCell,
+  fetchWorkerNames,
+}) => {
+  // Define columns for the Business Unit table.
   const businessUnitColumns = useMemo(
     () => [
       {
@@ -212,6 +215,7 @@ const NestedBUScopeTable = ({ businessUnits, subcatIndex, updateBusinessUnitCell
       {
         accessorKey: "businessUnitOwner",
         header: "BU Owner",
+        // Use our modal editor for BU Owner field
         Edit: ({ cell, row }) => (
           <WorkerNamesModalEdit
             cell={cell}
@@ -343,13 +347,12 @@ const NestedBUScopeTable = ({ businessUnits, subcatIndex, updateBusinessUnitCell
     [updateBusinessUnitCell, subcatIndex, fetchWorkerNames]
   );
 
-  // IMPORTANT: We switch to cell editing mode so that custom editors (and our updateCell function)
-  // are always rendered. This ensures that updateCell is available when the modal is used.
+  // Use modal editing mode for the nested table so that the entire row is edited in a modal.
   const nestedTableProps = {
     columns: businessUnitColumns,
     data: businessUnits,
     enableEditing: true,
-    editDisplayMode: "cell", // changed from "row" to "cell"
+    editDisplayMode: "modal", // entire row edits via a modal
     muiTableBodyCellEditTextFieldProps: { variant: "standard" },
     meta: {
       updateData: (rowIndex, columnId, value) =>
@@ -480,12 +483,14 @@ const CSFScopeTable = () => {
     [tableData]
   );
 
+  // Create main table instance with row expansion enabled.
   const mainTableProps = {
     columns: subcategoryColumns,
     data: tableData,
     enableFilters: true,
     enableEditing: false,
     enableRowExpansion: true,
+    // For each subcategory row, render a nested table (Level 2) via renderDetailPanel.
     renderDetailPanel: ({ row }) => (
       <NestedBUScopeTable
         businessUnits={row.original.businessUnits}
