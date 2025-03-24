@@ -97,3 +97,137 @@ const WorkerNamesCellEditor = forwardRef((props, ref) => {
 });
 
 export default WorkerNamesCellEditor;
+
+
+
+
+
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import 'ag-grid-community/dist/styles/ag-grid.css';
+import 'ag-grid-community/dist/styles/ag-theme-alpine.css';
+import WorkerNamesCellEditor from './WorkerNamesCellEditor';
+import axios from 'axios';
+import { Box } from '@mui/material';
+
+const CSFScopeAGGrid = () => {
+  const [rowData, setRowData] = useState([]);
+
+  // Fetch and group ScopeData (simulate Level 1: subcategories)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get('/api/ScopeData');
+        const grouped = {};
+        response.data.forEach(item => {
+          if (!grouped[item.subcategoryId]) {
+            grouped[item.subcategoryId] = {
+              subcategoryId: item.subcategoryId,
+              subcategoryName: item.subcategoryName,
+              subcategoryDescription: item.subcategoryDescription,
+              relatedSubcategories: item.relatedCsf1_1Subcategories,
+              businessUnits: []
+            };
+          }
+          grouped[item.subcategoryId].businessUnits.push(item);
+        });
+        setRowData(Object.values(grouped));
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const columnDefs = useMemo(() => [
+    { headerName: "Subcategory", field: "subcategoryName", filter: 'agSetColumnFilter' },
+    { headerName: "Description", field: "subcategoryDescription" },
+    { headerName: "Related Subcategories", field: "relatedSubcategories" },
+  ], []);
+
+  // Detail grid (Level 2) column definitions
+  const detailColumnDefs = useMemo(() => [
+    { headerName: "BU", field: "businessUnitAbbr", editable: false },
+    { 
+      headerName: "BU Owner", 
+      field: "businessUnitOwner", 
+      editable: true,
+      cellEditor: "workerNamesCellEditor" 
+    },
+    { 
+      headerName: "Auditor Custodian", 
+      field: "auditorSubcatCustodian", 
+      editable: true,
+      cellEditor: "workerNamesCellEditor" 
+    },
+    { 
+      headerName: "In Scope?", 
+      field: "auditorIsInScope", 
+      editable: true,
+      cellEditor: "agSelectCellEditor", 
+      cellEditorParams: { values: ["Yes", "No"] } 
+    },
+    { headerName: "Justification", field: "auditorJustification", editable: true },
+    { 
+      headerName: "Maturity Projection", 
+      field: "maturityProjection", 
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: ["Increase", "Decrease", "Maintain"] }
+    },
+    { 
+      headerName: "Profile Type", 
+      field: "auditorProfileType", 
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: ["Provider", "Consumer", "Both", "Inheritor"] }
+    },
+    { 
+      headerName: "Consuming From BU", 
+      field: "auditorConsumingFromBusinessUnit", 
+      editable: true,
+      cellEditor: "agSelectCellEditor",
+      cellEditorParams: { values: ["ABC", "UIO", "POA", "SKA-C", "Other"] }
+    },
+    { headerName: "Department Name", field: "departmentName", editable: true },
+  ], []);
+
+  // Provide frameworkComponents to AG Grid (register our custom editor)
+  const frameworkComponents = useMemo(() => ({
+    workerNamesCellEditor: WorkerNamesCellEditor
+  }), []);
+
+  const detailCellRendererParams = {
+    detailGridOptions: {
+      columnDefs: detailColumnDefs,
+      defaultColDef: {
+        flex: 1,
+        resizable: true,
+        filter: true,
+      },
+      frameworkComponents: frameworkComponents,
+      onCellValueChanged: (params) => {
+        console.log('Cell changed', params);
+      }
+    },
+    getDetailRowData: (params) => {
+      // Pass the businessUnits array for this subcategory.
+      params.successCallback(params.data.businessUnits);
+    }
+  };
+
+  return (
+    <div className="ag-theme-alpine" style={{ height: "600px", width: "100%" }}>
+      <AgGridReact
+        rowData={rowData}
+        columnDefs={columnDefs}
+        masterDetail={true}
+        detailCellRendererParams={detailCellRendererParams}
+        onGridReady={params => params.api.sizeColumnsToFit()}
+      />
+    </div>
+  );
+};
+
+export default CSFScopeAGGrid;
