@@ -30,18 +30,23 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
 const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*                          Helper: sanitizeInput                             */
+/*                         Helper: sanitizeInput                              */
 /* -------------------------------------------------------------------------- */
 const sanitizeInput = (str) => str.replace(/[<>]/g, "");
 
 /* -------------------------------------------------------------------------- */
-/*                WorkerNamesModalEdit – Modal for Worker Search              */
+/*          WorkerNamesModalEdit – Modal for Worker Search                    */
 /* -------------------------------------------------------------------------- */
 // This modal shows two text fields (FirstName & LastName) plus a Search button.
-// The API is only called when Search is clicked. Search results (with extra details)
-// are displayed as a list with checkboxes. Multiple selections are allowed.
-// When Done is clicked, the provided updateCell function is called.
-const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => {
+// It calls the API only after Search is clicked and displays results in a list
+// with checkboxes so that multiple selections are allowed.
+// When "Done" is clicked, it calls the provided updateCell function to update the cell.
+const WorkerNamesModalEdit = ({
+  cell,
+  label,
+  fetchWorkerNames,
+  updateCell, // explicitly provided update function from the nested table
+}) => {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -113,6 +118,7 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
     setSelectedWorkers(newSelected);
   };
 
+  // When "Done" is clicked, call the updateCell function (if provided) to update the cell value.
   const handleDone = () => {
     const names = selectedWorkers.map((w) => w.value).join(", ");
     if (typeof updateCell === "function") {
@@ -147,11 +153,7 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
               fullWidth
             />
           </Box>
-          <Button
-            variant="contained"
-            onClick={handleSearch}
-            disabled={loading}
-          >
+          <Button variant="contained" onClick={handleSearch} disabled={loading}>
             {loading ? <CircularProgress size={24} /> : "Search"}
           </Button>
           {searchResults.length > 0 && (
@@ -201,14 +203,10 @@ const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => 
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() =>
-          setSnackbar((prev) => ({ ...prev, open: false }))
-        }
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
       >
         <Alert
-          onClose={() =>
-            setSnackbar((prev) => ({ ...prev, open: false }))
-          }
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
           severity={snackbar.severity}
           sx={{ width: "100%" }}
         >
@@ -238,6 +236,7 @@ const NestedBUScopeTable = ({
       {
         accessorKey: "businessUnitOwner",
         header: "BU Owner",
+        // Pass an explicit updateCell function to our modal editor.
         Edit: ({ cell, row }) => (
           <WorkerNamesModalEdit
             cell={cell}
@@ -289,9 +288,7 @@ const NestedBUScopeTable = ({
         Edit: ({ cell, row }) => (
           <TextField
             defaultValue={cell.getValue() || ""}
-            onChange={(event) =>
-              cell.setValue(event.target.value)
-            }
+            onChange={(event) => cell.setValue(event.target.value)}
             disabled={row.getValue("auditorIsInScope") !== "No"}
           />
         ),
@@ -303,9 +300,7 @@ const NestedBUScopeTable = ({
           <TextField
             select
             defaultValue={cell.getValue() || ""}
-            onChange={(event) =>
-              cell.setValue(event.target.value)
-            }
+            onChange={(event) => cell.setValue(event.target.value)}
           >
             {MaturityProjectionOptions.map((option) => (
               <MenuItem key={option} value={option}>
@@ -419,7 +414,7 @@ const NestedBUScopeTable = ({
 };
 
 /* -------------------------------------------------------------------------- */
-/*                  CSFScopeTable Component (Level 1)                         */
+/*                    CSFScopeTable Component (Level 1)                     */
 /* -------------------------------------------------------------------------- */
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
