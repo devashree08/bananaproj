@@ -1,120 +1,15 @@
-import React, { useState, forwardRef, useImperativeHandle } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, List, ListItem, Checkbox, ListItemText, CircularProgress, Snackbar, Alert, Box } from '@mui/material';
-import axios from 'axios';
-
-const WorkerNamesCellEditor = forwardRef((props, ref) => {
-  // props: colDef, value, stopEditing, etc.
-  const [open, setOpen] = useState(true);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]);
-  const [selected, setSelected] = useState([]);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
-
-  useImperativeHandle(ref, () => ({
-    getValue() {
-      // Return the selected names as a comma-separated string.
-      return selected.join(', ');
-    }
-  }));
-
-  const searchWorkers = async () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      setSnackbar({ open: true, message: 'Please enter both first and last names', severity: 'error' });
-      return;
-    }
-    setLoading(true);
-    try {
-      const response = await axios.get('/api/GetWorkerName', {
-        params: { FirstName: firstName.trim(), LastName: lastName.trim() }
-      });
-      if (response.data.length === 0) {
-        setSnackbar({ open: true, message: 'No workers found', severity: 'error' });
-      }
-      // Map results to an array of objects.
-      const mapped = response.data.map(w => ({
-        label: w.NameFull,
-        jobTitle: w.JobTitle,
-        supervisor: w.SupervisorFullName
-      }));
-      setResults(mapped);
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Error fetching workers', severity: 'error' });
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleSelect = (workerLabel) => {
-    if (selected.includes(workerLabel)) {
-      setSelected(selected.filter(x => x !== workerLabel));
-    } else {
-      setSelected([...selected, workerLabel]);
-    }
-  };
-
-  return (
-    <>
-      <Dialog open={open} onClose={() => props.stopEditing()}>
-        <DialogTitle>Search Worker for {props.colDef.header}</DialogTitle>
-        <DialogContent>
-          <TextField label="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} fullWidth margin="normal" />
-          <TextField label="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} fullWidth margin="normal" />
-          <Button onClick={searchWorkers} variant="contained" disabled={loading}>
-            {loading ? <CircularProgress size={20} /> : "Search"}
-          </Button>
-          {results.length > 0 && (
-            <Box sx={{ mt: 2 }}>
-              <List>
-                {results.map(worker => (
-                  <ListItem key={worker.label} button onClick={() => toggleSelect(worker.label)}>
-                    <Checkbox checked={selected.includes(worker.label)} />
-                    <ListItemText primary={worker.label} secondary={`Job: ${worker.jobTitle} | Supervisor: ${worker.supervisor}`} />
-                  </ListItem>
-                ))}
-              </List>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setOpen(false); props.stopEditing(); }}>Cancel</Button>
-          <Button onClick={() => { setOpen(false); props.stopEditing(); }} variant="contained">Done</Button>
-        </DialogActions>
-      </Dialog>
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </>
-  );
-});
-
-export default WorkerNamesCellEditor;
-
-
-
-
-
-
+// CSFScopeAGGrid.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import 'ag-grid-community/dist/styles/ag-grid.css';
-import 'ag-grid-community/dist/styles/ag-theme-alpine.css';
-import WorkerNamesCellEditor from './WorkerNamesCellEditor';
-import axios from 'axios';
+import { AllCommunityModules } from 'ag-grid-community';
 import { Box } from '@mui/material';
+import axios from 'axios';
+import WorkerNamesCellEditor from './WorkerNamesCellEditor';
 
 const CSFScopeAGGrid = () => {
   const [rowData, setRowData] = useState([]);
 
-  // Fetch and group ScopeData (simulate Level 1: subcategories)
+  // Fetch and group ScopeData (Level 1: subcategories)
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -193,7 +88,6 @@ const CSFScopeAGGrid = () => {
     { headerName: "Department Name", field: "departmentName", editable: true },
   ], []);
 
-  // Provide frameworkComponents to AG Grid (register our custom editor)
   const frameworkComponents = useMemo(() => ({
     workerNamesCellEditor: WorkerNamesCellEditor
   }), []);
@@ -208,7 +102,7 @@ const CSFScopeAGGrid = () => {
       },
       frameworkComponents: frameworkComponents,
       onCellValueChanged: (params) => {
-        console.log('Cell changed', params);
+        console.log('Cell value changed in detail grid', params);
       }
     },
     getDetailRowData: (params) => {
@@ -224,6 +118,7 @@ const CSFScopeAGGrid = () => {
         columnDefs={columnDefs}
         masterDetail={true}
         detailCellRendererParams={detailCellRendererParams}
+        modules={AllCommunityModules}
         onGridReady={params => params.api.sizeColumnsToFit()}
       />
     </div>
