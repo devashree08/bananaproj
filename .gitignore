@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import MaterialReactTable from 'material-react-table';
+import MaterialReactTable, { useMaterialReactTable } from 'material-react-table';
 import axios from 'axios';
 import {
   Box,
@@ -13,10 +13,21 @@ import {
 } from '@mui/material';
 
 /* -------------------------------------------------------------------------- */
+/*                           Profile Type Definitions                         */
+/* -------------------------------------------------------------------------- */
+
+const profileTypeDefinitions = {
+  Provider: 'Definition for Provider: ...',
+  Consumer: 'Definition for Consumer: ...',
+  Both: 'Definition for Both: ...',
+  Inheritor: 'Definition for Inheritor: ...',
+};
+
+/* -------------------------------------------------------------------------- */
 /*                           Custom Hooks                                     */
 /* -------------------------------------------------------------------------- */
 
-// Custom hook to fetch BUScopeData and group it by subcategory
+// Custom hook for fetching and grouping BUScopeData
 const useFetchBUScopeData = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,6 +37,7 @@ const useFetchBUScopeData = () => {
     setLoading(true);
     try {
       const response = await axios.get('/api/GetBUScopeData');
+      // Group flat data by subcategoryName
       const groupedData = {};
       response.data.forEach((item) => {
         if (!groupedData[item.subcategoryName]) {
@@ -55,7 +67,7 @@ const useFetchBUScopeData = () => {
   return { data, loading, error, refetch: fetchBUScopeData };
 };
 
-// Custom hook to fetch Worker Info for Autocomplete options
+// Custom hook for fetching WorkerInfo
 const useFetchWorkerInfo = () => {
   const [workerNames, setWorkerNames] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -83,77 +95,17 @@ const useFetchWorkerInfo = () => {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                         CSFScopeTable Component                            */
+/*                   BusinessUnitsTable Component (Level 2/3)                 */
 /* -------------------------------------------------------------------------- */
 
-// Sample definitions for auditor profile types (Level 3)
-const profileTypeDefinitions = {
-  Provider: 'Definition for Provider: ...',
-  Consumer: 'Definition for Consumer: ...',
-  Both: 'Definition for Both: ...',
-  Inheritor: 'Definition for Inheritor: ...',
-};
-
-const CSFScopeTable = () => {
-  // Use custom hooks for fetching data
-  const {
-    data,
-    loading: buscopeLoading,
-    error: buscopeError,
-    refetch: refetchBUScopeData,
-  } = useFetchBUScopeData();
-  const {
-    workerNames,
-    loading: workerLoading,
-    error: workerError,
-    refetch: refetchWorkerInfo,
-  } = useFetchWorkerInfo();
-
-  // Update function for nested Business Unit data (Level 2)
-  const updateBusinessUnitCell = useCallback(
-    (subcatIndex, rowIndex, columnId, value) => {
-      // Update the nested business unit for a given subcategory
-      setData((prevData) => {
-        const newData = [...prevData];
-        newData[subcatIndex].businessUnits[rowIndex] = {
-          ...newData[subcatIndex].businessUnits[rowIndex],
-          [columnId]: value,
-        };
-        return newData;
-      });
-    },
-    []
-  );
-
-  // Since we need to update data, we mirror the grouped BUScopeData into state here.
-  // (In a larger application, you might use Context or a state management solution.)
-  const [tableData, setData] = useState([]);
-  useEffect(() => {
-    setData(data);
-  }, [data]);
-
-  // Level 1: Main table columns (display only)
-  const mainColumns = useMemo(
-    () => [
-      {
-        accessorKey: 'subcategoryName',
-        header: 'Subcategory Name',
-        enableColumnFilter: true,
-        filterVariant: 'multi-select', // Enables filtering on multiple values
-      },
-      {
-        accessorKey: 'subcategoryDescription',
-        header: 'Description',
-      },
-      {
-        accessorKey: 'relatedCsf1_1Subcategories',
-        header: 'Related Subcategories',
-      },
-    ],
-    []
-  );
-
-  // Level 2: Business Unit editable columns
+const BusinessUnitsTable = ({
+  businessUnits,
+  subcatIndex,
+  updateBusinessUnitCell,
+  workerNames,
+  onAddBusinessUnit,
+}) => {
+  // Level 2: Define columns for Business Units
   const buColumns = useMemo(
     () => [
       {
@@ -169,15 +121,9 @@ const CSFScopeTable = () => {
             options={workerNames.map((w) => w.NameFull)}
             value={cell.getValue() || ''}
             onChange={(event, newValue) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                newValue
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, newValue);
             }}
-            renderInput={(params) => (
-              <TextField {...params} variant="standard" />
-            )}
+            renderInput={(params) => <TextField {...params} variant="standard" />}
           />
         ),
       },
@@ -189,15 +135,9 @@ const CSFScopeTable = () => {
             options={workerNames.map((w) => w.NameFull)}
             value={cell.getValue() || ''}
             onChange={(event, newValue) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                newValue
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, newValue);
             }}
-            renderInput={(params) => (
-              <TextField {...params} variant="standard" />
-            )}
+            renderInput={(params) => <TextField {...params} variant="standard" />}
           />
         ),
       },
@@ -208,11 +148,7 @@ const CSFScopeTable = () => {
           <Select
             value={cell.getValue() || ''}
             onChange={(event) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                event.target.value
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
             }}
             variant="standard"
           >
@@ -228,11 +164,7 @@ const CSFScopeTable = () => {
           <TextField
             value={cell.getValue() || ''}
             onChange={(event) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                event.target.value
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
             }}
             variant="standard"
             disabled={row.original.auditorIsInScope === 'Yes'} // Only editable if "No"
@@ -246,11 +178,7 @@ const CSFScopeTable = () => {
           <Select
             value={cell.getValue() || ''}
             onChange={(event) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                event.target.value
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
             }}
             variant="standard"
           >
@@ -267,11 +195,7 @@ const CSFScopeTable = () => {
           <Select
             value={cell.getValue() || ''}
             onChange={(event) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                event.target.value
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
             }}
             variant="standard"
             disabled={row.original.auditorIsInScope !== 'Yes'} // Enabled only when In Scope is "Yes"
@@ -290,11 +214,7 @@ const CSFScopeTable = () => {
           <Select
             value={cell.getValue() || ''}
             onChange={(event) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                event.target.value
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
             }}
             variant="standard"
             disabled={
@@ -317,11 +237,7 @@ const CSFScopeTable = () => {
           <TextField
             value={cell.getValue() || ''}
             onChange={(event) => {
-              cell.table.options.meta?.updateData(
-                row.index,
-                cell.column.id,
-                event.target.value
-              );
+              cell.table.options.meta?.updateData(row.index, cell.column.id, event.target.value);
             }}
             variant="standard"
           />
@@ -331,65 +247,125 @@ const CSFScopeTable = () => {
     [workerNames]
   );
 
-  // Render the nested Business Unit table (Level 2) for each subcategory row
-  const renderBusinessUnitsTable = useCallback(
-    (subcat, subcatIndex) => (
-      <MaterialReactTable
-        columns={buColumns}
-        data={subcat.businessUnits}
-        enableEditing
-        // Level 3: Detail panel to show Profile Type Definitions for each BU row
-        renderDetailPanel={({ row }) => (
-          <Box sx={{ padding: 2 }}>
-            <Typography variant="h6">Profile Type Definitions</Typography>
-            <Typography variant="body2">
-              {row.original.auditorProfileType
-                ? profileTypeDefinitions[row.original.auditorProfileType]
-                : 'No Profile Type selected.'}
-            </Typography>
-          </Box>
-        )}
-        // Pass update function with current subcategory index via meta
-        tableInstanceRef={(instance) => {
-          instance.options.meta = {
-            updateData: (rowIndex, columnId, value) =>
-              updateBusinessUnitCell(subcatIndex, rowIndex, columnId, value),
-          };
-        }}
-        muiTableBodyCellEditTextFieldProps={{ variant: 'standard' }}
-        renderTopToolbarCustomActions={() => (
-          <Button
-            onClick={() => {
-              setData((prevData) => {
-                const newData = [...prevData];
-                const newRow = {
-                  businessUnitAbbr: '', // Display only
-                  businessUnitOwner: '',
-                  auditorSubcatCustodian: '',
-                  auditorIsInScope: '',
-                  auditorJustification: '',
-                  maturityProjection: '',
-                  auditorProfileType: '',
-                  auditorConsumingFromBusinessUnit: '',
-                  departmentName: '',
-                };
-                newData[subcatIndex].businessUnits = [
-                  ...newData[subcatIndex].businessUnits,
-                  newRow,
-                ];
-                return newData;
-              });
-            }}
-          >
-            Add Business Unit
-          </Button>
-        )}
-      />
+  // Use the MRT hook to create a nested table instance
+  const table = useMaterialReactTable({
+    columns: buColumns,
+    data: businessUnits,
+    // Level 3: Render a detail panel for each Business Unit row
+    renderDetailPanel: ({ row }) => (
+      <Box sx={{ padding: 2 }}>
+        <Typography variant="h6">Profile Type Definitions</Typography>
+        <Typography variant="body2">
+          {row.original.auditorProfileType
+            ? profileTypeDefinitions[row.original.auditorProfileType]
+            : 'No Profile Type selected.'}
+        </Typography>
+      </Box>
     ),
-    [buColumns, updateBusinessUnitCell]
+    meta: {
+      updateData: (rowIndex, columnId, value) =>
+        updateBusinessUnitCell(subcatIndex, rowIndex, columnId, value),
+    },
+    muiTableBodyCellEditTextFieldProps: { variant: 'standard' },
+  });
+
+  return (
+    <Box sx={{ padding: 2 }}>
+      <MaterialReactTable table={table} />
+      <Button onClick={onAddBusinessUnit} sx={{ marginTop: 2 }}>
+        Add Business Unit
+      </Button>
+    </Box>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                  CSFScopeTable Component (Level 1)                         */
+/* -------------------------------------------------------------------------- */
+
+const CSFScopeTable = () => {
+  // Use our custom hooks for API data
+  const { data, loading: buscopeLoading, error: buscopeError } = useFetchBUScopeData();
+  const { workerNames, loading: workerLoading, error: workerError } = useFetchWorkerInfo();
+
+  // Mirror the fetched BUScopeData into state for editing
+  const [tableData, setTableData] = useState([]);
+  useEffect(() => {
+    setTableData(data);
+  }, [data]);
+
+  // Update function for nested Business Unit cell updates
+  const updateBusinessUnitCell = useCallback((subcatIndex, rowIndex, columnId, value) => {
+    setTableData((prevData) => {
+      const newData = [...prevData];
+      newData[subcatIndex].businessUnits[rowIndex] = {
+        ...newData[subcatIndex].businessUnits[rowIndex],
+        [columnId]: value,
+      };
+      return newData;
+    });
+  }, []);
+
+  // Function to add a new Business Unit row
+  const onAddBusinessUnit = useCallback((subcatIndex) => {
+    setTableData((prevData) => {
+      const newData = [...prevData];
+      const newRow = {
+        businessUnitAbbr: '', // Display only
+        businessUnitOwner: '',
+        auditorSubcatCustodian: '',
+        auditorIsInScope: '',
+        auditorJustification: '',
+        maturityProjection: '',
+        auditorProfileType: '',
+        auditorConsumingFromBusinessUnit: '',
+        departmentName: '',
+      };
+      newData[subcatIndex].businessUnits = [
+        ...newData[subcatIndex].businessUnits,
+        newRow,
+      ];
+      return newData;
+    });
+  }, []);
+
+  // Level 1: Main table columns for subcategory data
+  const mainColumns = useMemo(
+    () => [
+      {
+        accessorKey: 'subcategoryName',
+        header: 'Subcategory Name',
+        enableColumnFilter: true,
+        filterVariant: 'multi-select',
+      },
+      {
+        accessorKey: 'subcategoryDescription',
+        header: 'Description',
+      },
+      {
+        accessorKey: 'relatedCsf1_1Subcategories',
+        header: 'Related Subcategories',
+      },
+    ],
+    []
   );
 
-  // Show a combined loading state if either API is still fetching data
+  // Create main table instance using useMaterialReactTable
+  const mainTable = useMaterialReactTable({
+    columns: mainColumns,
+    data: tableData,
+    // Render Level 2 (nested table) in the row sub-component
+    renderRowSubComponent: ({ row }) => (
+      <BusinessUnitsTable
+        businessUnits={row.original.businessUnits}
+        subcatIndex={row.index}
+        updateBusinessUnitCell={updateBusinessUnitCell}
+        workerNames={workerNames}
+        onAddBusinessUnit={() => onAddBusinessUnit(row.index)}
+      />
+    ),
+  });
+
   if (buscopeLoading || workerLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 4 }}>
@@ -398,31 +374,17 @@ const CSFScopeTable = () => {
     );
   }
 
-  // Show error message if either API call failed
   if (buscopeError || workerError) {
     return (
       <Box sx={{ padding: 2 }}>
-        <Typography color="error">
-          {buscopeError
-            ? 'Error fetching BUScopeData'
-            : 'Error fetching Worker Info'}
-        </Typography>
+        <Typography color="error">Error loading data</Typography>
       </Box>
     );
   }
 
   return (
     <Box sx={{ padding: 2 }}>
-      <MaterialReactTable
-        columns={mainColumns}
-        data={tableData}
-        enableRowNumbers
-        enableGlobalFilter
-        renderRowSubComponent={({ row }) =>
-          // Expand each Level 1 row to render its nested Business Unit table (Level 2)
-          renderBusinessUnitsTable(row.original, row.index)
-        }
-      />
+      <MaterialReactTable table={mainTable} />
     </Box>
   );
 };
