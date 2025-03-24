@@ -24,12 +24,27 @@ const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
 const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
 
 /* -------------------------------------------------------------------------- */
-/*              WorkerNameModalEdit – Modal for Worker Search                 */
+/*                WorkerNamesModalEdit (Modal Editor)                       */
 /* -------------------------------------------------------------------------- */
-const WorkerNameModalEdit = ({ cell, label, fetchWorkerNames }) => {
+// This modal is used for BU Owner and Auditor Custodian edits.
+// It calls the WorkerInfo API (passing FirstName & LastName) to search among 200K+ records.
+// It displays additional details (Job Title, Supervisor) in the option list.
+// It supports multiple selections.
+const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames }) => {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [options, setOptions] = useState([]);
+
+  // Convert current cell value (a comma-separated string) into an array of worker objects.
+  const currentValue =
+    cell.getValue() && cell.getValue().length > 0
+      ? cell.getValue().split(", ").map((name) => ({
+          value: name,
+          label: name,
+          jobTitle: "",
+          supervisorFullName: "",
+        }))
+      : [];
 
   const handleOpen = () => {
     setOpen(true);
@@ -41,9 +56,9 @@ const WorkerNameModalEdit = ({ cell, label, fetchWorkerNames }) => {
     setOpen(false);
   };
 
+  // When the input changes, call the API if it contains a space (assumed "First Last")
   const handleInputChange = async (event, newValue) => {
     setInputValue(newValue);
-    // Only search when input contains a space (assumes "First Last")
     if (newValue.includes(" ")) {
       const results = await fetchWorkerNames(newValue);
       setOptions(results);
@@ -52,10 +67,10 @@ const WorkerNameModalEdit = ({ cell, label, fetchWorkerNames }) => {
     }
   };
 
-  const handleSelect = (event, newValue) => {
-    if (newValue) {
-      cell.setValue(newValue.value);
-    }
+  // When selection changes, update the cell value (storing as a comma-separated string)
+  const handleSelectChange = (event, newSelected) => {
+    const names = newSelected.map((worker) => worker.value);
+    cell.setValue(names.join(", "));
   };
 
   return (
@@ -63,18 +78,25 @@ const WorkerNameModalEdit = ({ cell, label, fetchWorkerNames }) => {
       <Button variant="outlined" size="small" onClick={handleOpen}>
         Edit {label}
       </Button>
-      <Dialog open={open} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
         <DialogTitle>Edit {label}</DialogTitle>
         <DialogContent>
           <Autocomplete
+            multiple
             options={options}
-            value={
-              options.find((o) => o.value === cell.getValue()) || null
+            getOptionLabel={(option) =>
+              `${option.value} - ${option.jobTitle} (Supervisor: ${option.supervisorFullName})`
             }
-            onChange={handleSelect}
+            value={currentValue}
+            onChange={handleSelectChange}
             onInputChange={handleInputChange}
+            filterSelectedOptions
             renderInput={(params) => (
-              <TextField {...params} label={`${label} (First Last)`} />
+              <TextField
+                {...params}
+                label={`${label} (Enter "First Last")`}
+                placeholder="Search..."
+              />
             )}
           />
         </DialogContent>
@@ -92,7 +114,7 @@ const WorkerNameModalEdit = ({ cell, label, fetchWorkerNames }) => {
 const CSFScopeTable = () => {
   const [tableData, setTableData] = useState([]);
 
-  // Fetch Scope Data and group it by subcategoryId
+  // Fetch Scope Data and group by subcategoryId
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -120,7 +142,7 @@ const CSFScopeTable = () => {
     fetchData();
   }, []);
 
-  // API call to fetch Worker Names – passing FirstName and LastName as parameters
+  // API call to fetch Worker Names – passing FirstName and LastName as parameters.
   const fetchWorkerNames = async (inputValue) => {
     if (!inputValue.includes(" ")) return [];
     const [firstName, lastName] = inputValue.split(" ");
@@ -129,8 +151,10 @@ const CSFScopeTable = () => {
         params: { FirstName: firstName, LastName: lastName },
       });
       return response.data.map((worker) => ({
-        label: `${worker.Namefull} (${worker.JobTitle})`,
-        value: worker.Namefull,
+        label: `${worker.NameFull} - ${worker.JobTitle} (Supervisor: ${worker.SupervisorFullName})`,
+        value: worker.NameFull,
+        jobTitle: worker.JobTitle,
+        supervisorFullName: worker.SupervisorFullName,
       }));
     } catch (error) {
       console.error("Error fetching worker names:", error);
@@ -138,7 +162,7 @@ const CSFScopeTable = () => {
     }
   };
 
-  // LEVEL 1: Subcategory Columns (Display Only with Filtering)
+  // LEVEL 1: Subcategory Level (Display Only)
   const subcategoryColumns = useMemo(
     () => [
       {
@@ -146,7 +170,9 @@ const CSFScopeTable = () => {
         header: "Subcategory",
         size: 120,
         filterVariant: "multi-select",
-        filterSelectOptions: [...new Set(tableData.map((row) => row.subcategoryName))],
+        filterSelectOptions: [
+          ...new Set(tableData.map((row) => row.subcategoryName)),
+        ],
       },
       {
         accessorKey: "subcategoryDescription",
@@ -174,7 +200,7 @@ const CSFScopeTable = () => {
     [tableData]
   );
 
-  // LEVEL 2: Business Unit Columns (Fully Editable)
+  // LEVEL 2: Business Unit Level (Fully Editable)
   const businessUnitColumns = useMemo(
     () => [
       {
@@ -185,8 +211,9 @@ const CSFScopeTable = () => {
       {
         accessorKey: "businessUnitOwner",
         header: "BU Owner",
+        // Use the modal for multiple selection editing
         Edit: ({ cell }) => (
-          <WorkerNameModalEdit
+          <WorkerNamesModalEdit
             cell={cell}
             label="BU Owner"
             fetchWorkerNames={fetchWorkerNames}
@@ -197,7 +224,7 @@ const CSFScopeTable = () => {
         accessorKey: "auditorSubcatCustodian",
         header: "Auditor Custodian",
         Edit: ({ cell }) => (
-          <WorkerNameModalEdit
+          <WorkerNamesModalEdit
             cell={cell}
             label="Auditor Custodian"
             fetchWorkerNames={fetchWorkerNames}
@@ -214,7 +241,7 @@ const CSFScopeTable = () => {
             onChange={(event) => {
               const newValue = event.target.value;
               cell.setValue(newValue);
-              // If "Yes" then clear justification
+              // If "Yes", clear justification.
               if (newValue === "Yes") {
                 cell.row.getCell("auditorJustification").setValue("");
               }
@@ -324,6 +351,7 @@ const CSFScopeTable = () => {
           enableEditing
           editDisplayMode="row"
           muiTableContainerProps={{ sx: { overflowX: "auto" } }}
+          // LEVEL 3: Render a detail panel under each BU row with profile type definitions
           renderDetailPanel={() => (
             <Box
               p={2}
