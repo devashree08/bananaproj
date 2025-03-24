@@ -1,520 +1,99 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { MaterialReactTable } from "material-react-table";
-import {
-  MenuItem,
-  TextField,
-  Box,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Checkbox,
-  CircularProgress,
-  Snackbar,
-  Alert,
-} from "@mui/material";
-import axios from "axios";
+import React, { useState, forwardRef, useImperativeHandle } from 'react';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, List, ListItem, Checkbox, ListItemText, CircularProgress, Snackbar, Alert, Box } from '@mui/material';
+import axios from 'axios';
 
-// Dropdown options
-const ProfileTypeOptions = ["Provider", "Consumer", "Both", "Inheritor"];
-const BusinessUnitOptions = ["ABC", "UIO", "POA", "SKA-C", "Other"];
-const MaturityProjectionOptions = ["Increase", "Decrease", "Maintain"];
-
-/* -------------------------------------------------------------------------- */
-/*                         Helper: sanitizeInput                              */
-/* -------------------------------------------------------------------------- */
-const sanitizeInput = (str) => str.replace(/[<>]/g, "");
-
-/* -------------------------------------------------------------------------- */
-/*          WorkerNamesModalEdit – Modal for Worker Search                    */
-/* -------------------------------------------------------------------------- */
-// This component shows two text fields (First Name & Last Name) plus a Search button.
-// When Search is clicked it calls the API (using provided first/last name) and displays results
-// in a list with checkboxes so that multiple selections are allowed.
-// When "Done" is clicked, the provided updateCell function is invoked to update that cell's value.
-const WorkerNamesModalEdit = ({ cell, label, fetchWorkerNames, updateCell }) => {
-  const [open, setOpen] = useState(false);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+const WorkerNamesCellEditor = forwardRef((props, ref) => {
+  // props: colDef, value, stopEditing, etc.
+  const [open, setOpen] = useState(true);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedWorkers, setSelectedWorkers] = useState([]);
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: "",
-    severity: "error",
-  });
+  const [results, setResults] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
-  const handleOpen = () => {
-    setOpen(true);
-    setFirstName("");
-    setLastName("");
-    setSearchResults([]);
-    setSelectedWorkers([]);
-  };
+  useImperativeHandle(ref, () => ({
+    getValue() {
+      // Return the selected names as a comma-separated string.
+      return selected.join(', ');
+    }
+  }));
 
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  const handleSearch = async () => {
-    const fName = sanitizeInput(firstName.trim());
-    const lName = sanitizeInput(lastName.trim());
-    if (!fName || !lName) {
-      setSnackbar({
-        open: true,
-        message: "Please enter both first and last names.",
-        severity: "error",
-      });
+  const searchWorkers = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      setSnackbar({ open: true, message: 'Please enter both first and last names', severity: 'error' });
       return;
     }
     setLoading(true);
     try {
-      const results = await fetchWorkerNames(fName, lName);
-      if (results.length === 0) {
-        setSnackbar({
-          open: true,
-          message: "No workers found for that name.",
-          severity: "error",
-        });
-      }
-      setSearchResults(results);
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: "Error fetching workers.",
-        severity: "error",
+      const response = await axios.get('/api/GetWorkerName', {
+        params: { FirstName: firstName.trim(), LastName: lastName.trim() }
       });
-      setSearchResults([]);
+      if (response.data.length === 0) {
+        setSnackbar({ open: true, message: 'No workers found', severity: 'error' });
+      }
+      // Map results to an array of objects.
+      const mapped = response.data.map(w => ({
+        label: w.NameFull,
+        jobTitle: w.JobTitle,
+        supervisor: w.SupervisorFullName
+      }));
+      setResults(mapped);
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Error fetching workers', severity: 'error' });
+      setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggle = (worker) => {
-    const exists = selectedWorkers.some((w) => w.value === worker.value);
-    if (exists) {
-      setSelectedWorkers(selectedWorkers.filter((w) => w.value !== worker.value));
+  const toggleSelect = (workerLabel) => {
+    if (selected.includes(workerLabel)) {
+      setSelected(selected.filter(x => x !== workerLabel));
     } else {
-      setSelectedWorkers([...selectedWorkers, worker]);
+      setSelected([...selected, workerLabel]);
     }
-  };
-
-  // When "Done" is clicked, update only the client-side cell value.
-  const handleDone = () => {
-    const newValue = selectedWorkers.map((w) => w.value).join(", ");
-    updateCell(newValue);
-    handleClose();
   };
 
   return (
     <>
-      <Button variant="outlined" size="small" onClick={handleOpen}>
-        Edit {label}
-      </Button>
-      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>Edit {label}</DialogTitle>
+      <Dialog open={open} onClose={() => props.stopEditing()}>
+        <DialogTitle>Search Worker for {props.colDef.header}</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-            <TextField
-              label="First Name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Last Name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              fullWidth
-            />
-          </Box>
-          <Button variant="contained" onClick={handleSearch} disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : "Search"}
+          <TextField label="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} fullWidth margin="normal" />
+          <TextField label="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} fullWidth margin="normal" />
+          <Button onClick={searchWorkers} variant="contained" disabled={loading}>
+            {loading ? <CircularProgress size={20} /> : "Search"}
           </Button>
-          {searchResults.length > 0 && (
+          {results.length > 0 && (
             <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle1">Select Worker(s):</Typography>
               <List>
-                {searchResults.map((worker) => {
-                  const labelId = `checkbox-list-label-${worker.value}`;
-                  return (
-                    <ListItem
-                      key={worker.value}
-                      button
-                      onClick={() => handleToggle(worker)}
-                    >
-                      <ListItemIcon>
-                        <Checkbox
-                          edge="start"
-                          checked={selectedWorkers.some((w) => w.value === worker.value)}
-                          tabIndex={-1}
-                          disableRipple
-                          inputProps={{ "aria-labelledby": labelId }}
-                        />
-                      </ListItemIcon>
-                      <ListItemText
-                        id={labelId}
-                        primary={worker.value}
-                        secondary={`Job: ${worker.jobTitle} | Supervisor: ${worker.supervisorFullName}`}
-                      />
-                    </ListItem>
-                  );
-                })}
+                {results.map(worker => (
+                  <ListItem key={worker.label} button onClick={() => toggleSelect(worker.label)}>
+                    <Checkbox checked={selected.includes(worker.label)} />
+                    <ListItemText primary={worker.label} secondary={`Job: ${worker.jobTitle} | Supervisor: ${worker.supervisor}`} />
+                  </ListItem>
+                ))}
               </List>
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleDone} variant="contained">
-            Done
-          </Button>
+          <Button onClick={() => { setOpen(false); props.stopEditing(); }}>Cancel</Button>
+          <Button onClick={() => { setOpen(false); props.stopEditing(); }} variant="contained">Done</Button>
         </DialogActions>
       </Dialog>
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-          severity={snackbar.severity}
-          sx={{ width: "100%" }}
-        >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
           {snackbar.message}
         </Alert>
       </Snackbar>
     </>
   );
-};
+});
 
-/* -------------------------------------------------------------------------- */
-/*      NestedBUScopeTable Component (Level 2 & Detail Panel - Level 3)         */
-/* -------------------------------------------------------------------------- */
-const NestedBUScopeTable = ({
-  businessUnits,
-  subcatIndex,
-  updateBusinessUnitCell,
-  fetchWorkerNames,
-}) => {
-  // Define columns for the Business Unit table.
-  const businessUnitColumns = useMemo(
-    () => [
-      {
-        accessorKey: "businessUnitAbbr",
-        header: "BU",
-        enableEditing: false,
-      },
-      {
-        accessorKey: "businessUnitOwner",
-        header: "BU Owner",
-        // Use our modal editor for BU Owner field
-        Edit: ({ cell, row }) => (
-          <WorkerNamesModalEdit
-            cell={cell}
-            label="BU Owner"
-            fetchWorkerNames={fetchWorkerNames}
-            updateCell={(newValue) =>
-              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
-            }
-          />
-        ),
-      },
-      {
-        accessorKey: "auditorSubcatCustodian",
-        header: "Auditor Custodian",
-        Edit: ({ cell, row }) => (
-          <WorkerNamesModalEdit
-            cell={cell}
-            label="Auditor Custodian"
-            fetchWorkerNames={fetchWorkerNames}
-            updateCell={(newValue) =>
-              updateBusinessUnitCell(subcatIndex, row.index, cell.column.id, newValue)
-            }
-          />
-        ),
-      },
-      {
-        accessorKey: "auditorIsInScope",
-        header: "In Scope?",
-        Edit: ({ cell }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => {
-              const newValue = event.target.value;
-              cell.setValue(newValue);
-              if (newValue === "Yes") {
-                cell.row.getCell("auditorJustification").setValue("");
-              }
-            }}
-          >
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "auditorJustification",
-        header: "Justification",
-        Edit: ({ cell, row }) => (
-          <TextField
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-            disabled={row.getValue("auditorIsInScope") !== "No"}
-          />
-        ),
-      },
-      {
-        accessorKey: "maturityProjection",
-        header: "Maturity Projection",
-        Edit: ({ cell }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-          >
-            {MaturityProjectionOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "auditorProfileType",
-        header: "Profile Type",
-        Edit: ({ cell, row }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => {
-              const newValue = event.target.value;
-              cell.setValue(newValue);
-              if (!["Consumer", "Both"].includes(newValue)) {
-                cell.row.getCell("auditorConsumingFromBusinessUnit").setValue("");
-              }
-            }}
-          >
-            {ProfileTypeOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "auditorConsumingFromBusinessUnit",
-        header: "Consuming From BU",
-        Edit: ({ cell, row }) => (
-          <TextField
-            select
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-            disabled={
-              row.getValue("auditorProfileType") !== "Consumer" &&
-              row.getValue("auditorProfileType") !== "Both"
-            }
-          >
-            {BusinessUnitOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-        ),
-      },
-      {
-        accessorKey: "departmentName",
-        header: "Department Name",
-        Edit: ({ cell }) => (
-          <TextField
-            defaultValue={cell.getValue() || ""}
-            onChange={(event) => cell.setValue(event.target.value)}
-          />
-        ),
-      },
-    ],
-    [updateBusinessUnitCell, subcatIndex, fetchWorkerNames]
-  );
-
-  // Use modal editing mode for the nested table so that the entire row is edited in a modal.
-  const nestedTableProps = {
-    columns: businessUnitColumns,
-    data: businessUnits,
-    enableEditing: true,
-    editDisplayMode: "modal", // entire row edits via a modal
-    muiTableBodyCellEditTextFieldProps: { variant: "standard" },
-    meta: {
-      updateData: (rowIndex, columnId, value) =>
-        updateBusinessUnitCell(subcatIndex, rowIndex, columnId, value),
-    },
-    renderDetailPanel: ({ row }) => (
-      <Box
-        p={2}
-        sx={{
-          backgroundColor: "#f4f4f4",
-          borderRadius: "8px",
-          marginTop: "10px",
-        }}
-      >
-        <Typography variant="h6">Profile Type Definitions</Typography>
-        <ul>
-          <li>
-            <strong>Provider:</strong> Supplies services to other BUs.
-          </li>
-          <li>
-            <strong>Consumer:</strong> Receives services from other BUs.
-          </li>
-          <li>
-            <strong>Both:</strong> Acts as both Provider & Consumer.
-          </li>
-          <li>
-            <strong>Inheritor:</strong> Inherits control from another BU.
-          </li>
-        </ul>
-      </Box>
-    ),
-  };
-
-  return (
-    <Box>
-      <MaterialReactTable {...nestedTableProps} />
-    </Box>
-  );
-};
-
-/* -------------------------------------------------------------------------- */
-/*             CSFScopeTable Component (Level 1 – Main Table)                 */
-/* -------------------------------------------------------------------------- */
-const CSFScopeTable = () => {
-  const [tableData, setTableData] = useState([]);
-
-  // Fetch ScopeData and group by subcategoryId
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get("/api/ScopeData");
-        const groupedData = Object.values(
-          response.data.reduce((acc, item) => {
-            if (!acc[item.subcategoryId]) {
-              acc[item.subcategoryId] = {
-                subcategoryId: item.subcategoryId,
-                subcategoryName: item.subcategoryName,
-                subcategoryDescription: item.subcategoryDescription,
-                relatedSubcategories: item.relatedCsf1_1Subcategories,
-                businessUnits: [],
-              };
-            }
-            acc[item.subcategoryId].businessUnits.push(item);
-            return acc;
-          }, {})
-        );
-        setTableData(groupedData);
-      } catch (error) {
-        console.error("Error fetching scope data:", error);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // API call to fetch Worker Names – using sanitized first and last names.
-  const fetchWorkerNames = async (firstName, lastName) => {
-    try {
-      const response = await axios.get(`/api/GetWorkerName`, {
-        params: { FirstName: firstName, LastName: lastName },
-      });
-      return response.data.map((worker) => ({
-        label: `${worker.NameFull} - ${worker.JobTitle} (Supervisor: ${worker.SupervisorFullName})`,
-        value: worker.NameFull,
-        jobTitle: worker.JobTitle,
-        supervisorFullName: worker.SupervisorFullName,
-      }));
-    } catch (error) {
-      console.error("Error fetching worker names:", error);
-      return [];
-    }
-  };
-
-  // LEVEL 1: Subcategory Columns
-  const subcategoryColumns = useMemo(
-    () => [
-      {
-        accessorKey: "subcategoryName",
-        header: "Subcategory",
-        size: 120,
-        filterVariant: "multi-select",
-        filterSelectOptions: [
-          ...new Set(tableData.map((row) => row.subcategoryName)),
-        ],
-      },
-      {
-        accessorKey: "subcategoryDescription",
-        header: "Description",
-        size: 300,
-        filterVariant: "text",
-        Cell: ({ cell }) => (
-          <div
-            style={{
-              whiteSpace: "normal",
-              wordWrap: "break-word",
-              overflowWrap: "break-word",
-            }}
-          >
-            {cell.getValue()}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "relatedSubcategories",
-        header: "Related Subcategories",
-        filterVariant: "text",
-      },
-    ],
-    [tableData]
-  );
-
-  // Create main table instance with row expansion enabled.
-  const mainTableProps = {
-    columns: subcategoryColumns,
-    data: tableData,
-    enableFilters: true,
-    enableEditing: false,
-    enableRowExpansion: true,
-    // For each subcategory row, render a nested table (Level 2) via renderDetailPanel.
-    renderDetailPanel: ({ row }) => (
-      <NestedBUScopeTable
-        businessUnits={row.original.businessUnits}
-        subcatIndex={row.index}
-        updateBusinessUnitCell={(subcatIdx, rowIdx, columnId, value) => {
-          setTableData((prev) => {
-            const newData = [...prev];
-            newData[subcatIdx].businessUnits[rowIdx] = {
-              ...newData[subcatIdx].businessUnits[rowIdx],
-              [columnId]: value,
-            };
-            return newData;
-          });
-        }}
-        fetchWorkerNames={fetchWorkerNames}
-      />
-    ),
-  };
-
-  return (
-    <Box sx={{ p: 2 }}>
-      <MaterialReactTable {...mainTableProps} />
-    </Box>
-  );
-};
-
-export default CSFScopeTable;
+export default WorkerNamesCellEditor;
