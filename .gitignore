@@ -1,3 +1,121 @@
+// ScopeDataFilters.jsx
+import React, { useState, useEffect } from 'react';
+import { Accordion, AccordionSummary, AccordionDetails, Box, Typography, Button, Autocomplete, TextField } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+
+const ScopeDataFilters = ({ onFilterChange, filterOptions = {} }) => {
+  // Options can be passed in or computed (here we use props for flexibility)
+  const {
+    subcategoryNames = [],
+    bus = [],
+    buOwners = [],
+    subcatCustodians = [],
+    inScopeOptions = ['Yes', 'No'],
+    profileTypes = ['Provider', 'Consumer', 'Both', 'Inheritor']
+  } = filterOptions;
+
+  // Local state for each filter
+  const [selectedSubcategories, setSelectedSubcategories] = useState([]);
+  const [selectedBU, setSelectedBU] = useState([]);
+  const [selectedBUOwner, setSelectedBUOwner] = useState([]);
+  const [selectedCustodian, setSelectedCustodian] = useState([]);
+  const [selectedInScope, setSelectedInScope] = useState([]);
+  const [selectedProfileType, setSelectedProfileType] = useState([]);
+
+  // Clear selections when component mounts, if needed.
+  useEffect(() => {
+    setSelectedSubcategories([]);
+    setSelectedBU([]);
+    setSelectedBUOwner([]);
+    setSelectedCustodian([]);
+    setSelectedInScope([]);
+    setSelectedProfileType([]);
+  }, []);
+
+  const applyFilters = () => {
+    // Build filter object. For now, we convert each array to a comma‑separated string.
+    const filters = {
+      SubcategoryName: selectedSubcategories.join(','),
+      BU: selectedBU.join(','),
+      BUOwner: selectedBUOwner.join(','),
+      SubcatCustodian: selectedCustodian.join(','),
+      InScope: selectedInScope.join(','),
+      ProfileType: selectedProfileType.join(',')
+    };
+    onFilterChange(filters);
+  };
+
+  return (
+    <Accordion defaultExpanded>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Typography variant="h6">Filters</Typography>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Box display="flex" flexWrap="wrap" gap={2}>
+          <Autocomplete
+            multiple
+            options={subcategoryNames}
+            value={selectedSubcategories}
+            onChange={(event, newValue) => setSelectedSubcategories(newValue)}
+            renderInput={(params) => <TextField {...params} label="Subcategory Name" variant="outlined" />}
+            sx={{ minWidth: 200 }}
+          />
+          <Autocomplete
+            multiple
+            options={bus}
+            value={selectedBU}
+            onChange={(event, newValue) => setSelectedBU(newValue)}
+            renderInput={(params) => <TextField {...params} label="BU" variant="outlined" />}
+            sx={{ minWidth: 200 }}
+          />
+          <Autocomplete
+            multiple
+            options={buOwners}
+            value={selectedBUOwner}
+            onChange={(event, newValue) => setSelectedBUOwner(newValue)}
+            renderInput={(params) => <TextField {...params} label="BU Owner" variant="outlined" />}
+            sx={{ minWidth: 200 }}
+          />
+          <Autocomplete
+            multiple
+            options={subcatCustodians}
+            value={selectedCustodian}
+            onChange={(event, newValue) => setSelectedCustodian(newValue)}
+            renderInput={(params) => <TextField {...params} label="Subcat Custodian" variant="outlined" />}
+            sx={{ minWidth: 200 }}
+          />
+          <Autocomplete
+            multiple
+            options={inScopeOptions}
+            value={selectedInScope}
+            onChange={(event, newValue) => setSelectedInScope(newValue)}
+            renderInput={(params) => <TextField {...params} label="In Scope" variant="outlined" />}
+            sx={{ minWidth: 200 }}
+          />
+          <Autocomplete
+            multiple
+            options={profileTypes}
+            value={selectedProfileType}
+            onChange={(event, newValue) => setSelectedProfileType(newValue)}
+            renderInput={(params) => <TextField {...params} label="Profile Type" variant="outlined" />}
+            sx={{ minWidth: 200 }}
+          />
+        </Box>
+        <Box mt={2}>
+          <Button variant="contained" onClick={applyFilters}>
+            Apply Filters
+          </Button>
+        </Box>
+      </AccordionDetails>
+    </Accordion>
+  );
+};
+
+export default ScopeDataFilters;
+
+
+--
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
