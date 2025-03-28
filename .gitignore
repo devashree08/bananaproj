@@ -1,5 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography, Snackbar, Alert, Chip } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Box,
+  Typography,
+  Snackbar,
+  Alert,
+  Chip
+} from '@mui/material';
 import axios from 'axios';
 
 const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
@@ -10,7 +22,7 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
   const [selected, setSelected] = useState(initialValue ? initialValue.split(', ') : []);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
-  // Clear fields when modal opens
+  // Clear previous search when modal opens.
   useEffect(() => {
     if (open) {
       setFirstName('');
@@ -20,7 +32,10 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
     }
   }, [open, initialValue]);
 
-  const searchWorkers = async () => {
+  // Simple sanitization function.
+  const sanitizeInput = useCallback((str) => str.replace(/[<>]/g, ''), []);
+
+  const searchWorkers = useCallback(async () => {
     if (!firstName.trim() || !lastName.trim()) {
       setSnackbar({ open: true, message: 'Please enter both first and last names.', severity: 'error' });
       return;
@@ -28,7 +43,10 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
     setLoading(true);
     try {
       const response = await axios.get('/api/GetWorkerName', {
-        params: { FirstName: firstName.trim(), LastName: lastName.trim() }
+        params: {
+          FirstName: sanitizeInput(firstName.trim()),
+          LastName: sanitizeInput(lastName.trim())
+        }
       });
       if (response.data.length === 0) {
         setSnackbar({ open: true, message: 'No workers found.', severity: 'error' });
@@ -40,38 +58,36 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [firstName, lastName, sanitizeInput]);
 
-  const toggleSelect = (nameFull) => {
-    if (selected.includes(nameFull)) {
-      setSelected(selected.filter(n => n !== nameFull));
-    } else {
-      setSelected([...selected, nameFull]);
-    }
-  };
+  const toggleSelect = useCallback((nameFull) => {
+    setSelected(prev =>
+      prev.includes(nameFull) ? prev.filter(n => n !== nameFull) : [...prev, nameFull]
+    );
+  }, []);
 
-  const handleDone = () => {
+  const handleDone = useCallback(() => {
     onSelect(selected.join(', '));
     onClose();
-  };
+  }, [onSelect, selected, onClose]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Search Worker</DialogTitle>
       <DialogContent>
-        <TextField 
-          label="First Name" 
-          value={firstName} 
-          onChange={e => setFirstName(e.target.value)} 
-          fullWidth 
-          margin="normal" 
+        <TextField
+          label="First Name"
+          value={firstName}
+          onChange={e => setFirstName(e.target.value)}
+          fullWidth
+          margin="normal"
         />
-        <TextField 
-          label="Last Name" 
-          value={lastName} 
-          onChange={e => setLastName(e.target.value)} 
-          fullWidth 
-          margin="normal" 
+        <TextField
+          label="Last Name"
+          value={lastName}
+          onChange={e => setLastName(e.target.value)}
+          fullWidth
+          margin="normal"
         />
         <Button onClick={searchWorkers} variant="contained" disabled={loading}>
           {loading ? 'Searching...' : 'Search'}
@@ -83,7 +99,7 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
               <Chip 
                 key={workerName} 
                 label={workerName} 
-                onDelete={() => setSelected(selected.filter(n => n !== workerName))}
+                onDelete={() => setSelected(prev => prev.filter(n => n !== workerName))}
               />
             ))}
           </Box>
@@ -93,18 +109,18 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
           <Box mt={2}>
             <Typography variant="subtitle1">Select Worker(s):</Typography>
             {results.map(worker => (
-              <Box 
-                key={worker.NameFull} 
-                display="flex" 
-                alignItems="center" 
+              <Box
+                key={worker.NameFull}
+                display="flex"
+                alignItems="center"
                 onClick={() => toggleSelect(worker.NameFull)}
                 sx={{ cursor: 'pointer', py: 0.5 }}
               >
-                <input 
-                  type="checkbox" 
-                  checked={selected.includes(worker.NameFull)} 
-                  readOnly 
-                  style={{ marginRight: 8 }} 
+                <input
+                  type="checkbox"
+                  checked={selected.includes(worker.NameFull)}
+                  readOnly
+                  style={{ marginRight: 8 }}
                 />
                 <Typography>
                   {worker.NameFull} - {worker.JobTitle} (Supervisor: {worker.SupervisorFullName})
@@ -121,9 +137,9 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
       >
-        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+        <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity}>
           {snackbar.message}
         </Alert>
       </Snackbar>
@@ -132,3 +148,452 @@ const WorkerSearchModal = ({ open, onClose, onSelect, initialValue }) => {
 };
 
 export default WorkerSearchModal;
+
+
+
+----
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { 
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
+  Button, Box, Typography, Collapse, Snackbar, Alert 
+} from '@mui/material';
+import axios from 'axios';
+import WorkerSearchModal from './WorkerSearchModal';
+
+const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
+  const [form, setForm] = useState({ ...businessUnit });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
+  const [workerModalOpen, setWorkerModalOpen] = useState(false);
+  const [editingField, setEditingField] = useState('');
+
+  useEffect(() => {
+    setForm({ ...businessUnit });
+  }, [businessUnit]);
+
+  const handleFieldChange = useCallback((field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const openWorkerModal = useCallback((field) => {
+    setEditingField(field);
+    setWorkerModalOpen(true);
+  }, []);
+
+  const handleWorkerSelect = useCallback((value) => {
+    handleFieldChange(editingField, value);
+  }, [editingField, handleFieldChange]);
+
+  const handleSave = async () => {
+    // Validate required fields
+    if (form.auditorIsInScope === 'No' && !form.auditorJustification) {
+      setSnackbar({ open: true, message: 'Auditor Justification is required when In Scope is No.', severity: 'error' });
+      return;
+    }
+    // Build payload according to API model.
+    const payload = {
+      businessUnitAbbr: form.businessUnitAbbr,
+      subcategoryName: form.subcategoryName,  // must be part of the data
+      businessUnitOwner: form.businessUnitOwner,
+      auditorSubcatCustodian: form.auditorSubcatCustodian,
+      auditorIsInScope: form.auditorIsInScope,
+      auditorJustification: form.auditorJustification,
+      maturityProjection: form.maturityProjection,
+      auditorProfileType: form.auditorProfileType,
+      auditorConsumingFromBusinessUnit: form.auditorConsumingFromBusinessUnit,
+      departmentName: form.departmentName
+    };
+
+    try {
+      await axios.post('/UpdateBUScopeData', payload);
+      // Show success message
+      setSnackbar({ open: true, message: 'Update successful.', severity: 'success' });
+      onSave(form);
+      onClose();
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Error saving data. Please try again.', severity: 'error' });
+      console.error('Error updating BUScopeData:', error);
+    }
+  };
+
+  // Conditional enabling/disabling
+  const justificationDisabled = form.auditorIsInScope === 'Yes';
+  const maturityEnabled = form.auditorIsInScope === 'Yes';
+  const profileEnabled = form.auditorIsInScope === 'Yes';
+  const departmentEnabled = form.auditorIsInScope === 'Yes';
+  const consumingEnabled = form.auditorProfileType === 'Consumer' || form.auditorProfileType === 'Both';
+
+  return (
+    <>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+        <DialogTitle>Edit Business Unit</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="BU (Read Only)"
+            value={form.businessUnitAbbr}
+            fullWidth
+            margin="normal"
+            disabled
+          />
+          <Box display="flex" alignItems="center" mb={2}>
+            <TextField
+              label="BU Owner"
+              value={form.businessUnitOwner}
+              fullWidth
+              margin="normal"
+              onChange={e => handleFieldChange('businessUnitOwner', e.target.value)}
+            />
+            <Button onClick={() => openWorkerModal('businessUnitOwner')} variant="outlined" sx={{ ml: 1 }}>
+              Edit
+            </Button>
+          </Box>
+          <Box display="flex" alignItems="center" mb={2}>
+            <TextField
+              label="Auditor Custodian"
+              value={form.auditorSubcatCustodian}
+              fullWidth
+              margin="normal"
+              onChange={e => handleFieldChange('auditorSubcatCustodian', e.target.value)}
+            />
+            <Button onClick={() => openWorkerModal('auditorSubcatCustodian')} variant="outlined" sx={{ ml: 1 }}>
+              Edit
+            </Button>
+          </Box>
+          <TextField
+            label="In Scope?"
+            value={form.auditorIsInScope}
+            onChange={e => handleFieldChange('auditorIsInScope', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+          >
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </TextField>
+          <TextField
+            label="Justification"
+            value={form.auditorJustification}
+            onChange={e => handleFieldChange('auditorJustification', e.target.value)}
+            fullWidth
+            margin="normal"
+            disabled={justificationDisabled}
+          />
+          <TextField
+            label="Maturity Projection"
+            value={form.maturityProjection}
+            onChange={e => handleFieldChange('maturityProjection', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+            disabled={!maturityEnabled}
+          >
+            {["Increase", "Decrease", "Maintain"].map(option => (
+              <MenuItem key={option} value={option}>{option}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Profile Type"
+            value={form.auditorProfileType}
+            onChange={e => handleFieldChange('auditorProfileType', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+            disabled={!profileEnabled}
+          >
+            {["Provider", "Consumer", "Both", "Inheritor"].map(option => (
+              <MenuItem key={option} value={option}>{option}</MenuItem>
+            ))}
+          </TextField>
+          <Collapse in={true} timeout="auto" unmountOnExit>
+            <Box sx={{ p: 1, backgroundColor: '#f4f4f4', borderRadius: 1, mt: 1 }}>
+              <Typography variant="h6">Profile Type Definitions</Typography>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                <li><strong>Provider:</strong> Supplies services to other BUs.</li>
+                <li><strong>Consumer:</strong> Receives services from other BUs.</li>
+                <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
+                <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
+              </ul>
+            </Box>
+          </Collapse>
+          <TextField
+            label="Department Name"
+            value={form.departmentName}
+            onChange={e => handleFieldChange('departmentName', e.target.value)}
+            fullWidth
+            margin="normal"
+            disabled={!departmentEnabled}
+          />
+          <TextField
+            label="Consuming From BU"
+            value={form.auditorConsumingFromBusinessUnit}
+            onChange={e => handleFieldChange('auditorConsumingFromBusinessUnit', e.target.value)}
+            select
+            fullWidth
+            margin="normal"
+            disabled={!consumingEnabled}
+          >
+            {["ABC", "UIO", "POA", "SKA-C", "Other"].map(option => (
+              <MenuItem key={option} value={option}>{option}</MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+      {workerModalOpen && (
+        <WorkerSearchModal 
+          open={workerModalOpen} 
+          onClose={() => setWorkerModalOpen(false)}
+          onSelect={handleWorkerSelect}
+          initialValue={form[editingField]}
+        />
+      )}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </>
+  );
+};
+
+export default EditBusinessUnitModal;
+
+
+---
+
+
+import React, { useEffect, useState } from 'react';
+import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Typography,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Button,
+  TablePagination,
+  Box
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import axios from 'axios';
+import EditBusinessUnitModal from './EditBusinessUnitModal';
+import ScopeDataFilters from './ScopeDataFilters';
+
+const CSFScopeAccordion = () => {
+  const [data, setData] = useState([]);
+  const [filters, setFilters] = useState(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [editBU, setEditBU] = useState(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
+  // Fetch data with filters (client-side filtering can be replaced with API-based)
+  const fetchData = async (filterParams) => {
+    try {
+      const response = await axios.get('/api/GetBUScopeData', { params: filterParams || {} });
+      const grouped = {};
+      response.data.forEach(item => {
+        const subcatId = item.subcategoryId;
+        if (!grouped[subcatId]) {
+          grouped[subcatId] = {
+            subcategoryId: subcatId,
+            subcategoryName: item.subcategoryName,
+            subcategoryDescription: item.subcategoryDescription,
+            relatedSubcategories: item.relatedCsf1_1Subcategories,
+            businessUnits: []
+          };
+        }
+        // Deduplicate BU rows based on businessUnitAbbr.
+        if (!grouped[subcatId].businessUnits.find(bu => bu.businessUnitAbbr === item.businessUnitAbbr)) {
+          grouped[subcatId].businessUnits.push(item);
+        }
+      });
+      setData(Object.values(grouped));
+    } catch (error) {
+      console.error('Error fetching scope data:', error);
+    }
+  };
+
+  // Fetch data on mount and whenever filters change.
+  useEffect(() => {
+    fetchData(filters);
+  }, [filters]);
+
+  const handleFilterChange = (filterValues) => {
+    // Here, filterValues is an object with comma-separated strings.
+    setFilters(filterValues);
+    setCurrentPage(0);
+  };
+
+  // Paginate Level 1 data.
+  const paginatedData = data.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage);
+
+  const handleChangePage = (event, newPage) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setCurrentPage(0);
+  };
+
+  const handleEditBU = (bu) => {
+    setEditBU(bu);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveBU = (newData) => {
+    // Update only the BU that matches based on businessUnitAbbr and subcategoryName.
+    setData(prev => prev.map(subcat => {
+      if (subcat.subcategoryName === newData.subcategoryName) {
+        return {
+          ...subcat,
+          businessUnits: subcat.businessUnits.map(bu =>
+            bu.businessUnitAbbr === newData.businessUnitAbbr ? newData : bu
+          )
+        };
+      }
+      return subcat;
+    }));
+    setEditModalOpen(false);
+  };
+
+  return (
+    <Box sx={{ m: 2 }}>
+      {/* Filters component above the Accordions */}
+      <ScopeDataFilters
+        onFilterChange={handleFilterChange}
+        filterOptions={{
+          subcategoryNames: data.map(d => d.subcategoryName),
+          bus: ['ABC', 'UIO', 'POA', 'SKA-C'],
+          buOwners: [],         // Optionally pass available BU Owners
+          subcatCustodians: [], // Optionally pass available Subcat Custodians
+          inScopeOptions: ['Yes', 'No'],
+          profileTypes: ['Provider', 'Consumer', 'Both', 'Inheritor']
+        }}
+      />
+      {/* Header for Level 1 */}
+      <Box display="flex" sx={{ borderBottom: '1px solid #ccc', mb: 2, p: 1 }}>
+        <Box flex={1}>
+          <Typography variant="subtitle1" fontWeight="bold">Subcategory Name</Typography>
+        </Box>
+        <Box flex={2}>
+          <Typography variant="subtitle1" fontWeight="bold">Description</Typography>
+        </Box>
+        <Box flex={1}>
+          <Typography variant="subtitle1" fontWeight="bold">Related CSF 1.1 Subcats</Typography>
+        </Box>
+      </Box>
+      {paginatedData.map(subcat => (
+        <Accordion key={subcat.subcategoryId}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box display="flex" width="100%">
+              <Box flex={1}>
+                <Typography variant="h6">{subcat.subcategoryName}</Typography>
+              </Box>
+              <Box flex={2}>
+                <Typography variant="body2">{subcat.subcategoryDescription}</Typography>
+              </Box>
+              <Box flex={1}>
+                <Typography variant="caption">{subcat.relatedSubcategories}</Typography>
+              </Box>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Table size="small">
+              <TableHead sx={{ backgroundColor: 'black' }}>
+                <TableRow>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>BU</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>BU Owner</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Auditor Custodian</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>In Scope?</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Justification</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Maturity Projection</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Profile Type</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Consuming From BU</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Department</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Info</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {subcat.businessUnits.map(bu => (
+                  <React.Fragment key={bu.businessUnitAbbr}>
+                    <TableRow
+                      sx={{ '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}
+                    >
+                      <TableCell>{bu.businessUnitAbbr}</TableCell>
+                      <TableCell>{bu.businessUnitOwner}</TableCell>
+                      <TableCell>{bu.auditorSubcatCustodian}</TableCell>
+                      <TableCell>{bu.auditorIsInScope}</TableCell>
+                      <TableCell>{bu.auditorJustification}</TableCell>
+                      <TableCell>{bu.maturityProjection}</TableCell>
+                      <TableCell>{bu.auditorProfileType}</TableCell>
+                      <TableCell>{bu.auditorConsumingFromBusinessUnit}</TableCell>
+                      <TableCell>{bu.departmentName}</TableCell>
+                      <TableCell>
+                        <Button variant="text" size="small" onClick={() => { 
+                          bu.showInfo = !bu.showInfo; 
+                          setData([...data]); 
+                        }}>
+                          {bu.showInfo ? "Hide Info" : "Show Info"}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Button onClick={() => handleEditBU(bu)} variant="outlined" size="small">
+                          Edit
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {bu.showInfo && (
+                      <TableRow>
+                        <TableCell colSpan={11} sx={{ backgroundColor: '#f4f4f4', p: 1 }}>
+                          <Typography variant="h6">Profile Type Definitions</Typography>
+                          <ul style={{ margin: 0, paddingLeft: 16 }}>
+                            <li><strong>Provider:</strong> Supplies services to other BUs.</li>
+                            <li><strong>Consumer:</strong> Receives services from other BUs.</li>
+                            <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
+                            <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
+                          </ul>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+      <TablePagination
+        component="div"
+        count={data.length}
+        page={currentPage}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10, 20, 50]}
+      />
+      {editBU && (
+        <EditBusinessUnitModal 
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          businessUnit={editBU}
+          onSave={handleSaveBU}
+        />
+      )}
+    </Box>
+  );
+};
+
+export default CSFScopeAccordion;
