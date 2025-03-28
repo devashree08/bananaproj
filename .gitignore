@@ -1,4 +1,3 @@
-// EditBusinessUnitModal.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Dialog, DialogTitle, DialogContent, DialogActions, 
@@ -8,15 +7,16 @@ import axios from 'axios';
 import WorkerSearchModal from './WorkerSearchModal';
 
 /**
- * EditBusinessUnitModal edits one Business Unit.
- * It applies conditional logic:
- * - If auditorIsInScope = 'No', justification is enabled and required.
- * - If auditorIsInScope = 'Yes', justification is cleared/disabled and maturityProjection, auditorProfileType, and departmentName are enabled.
- * - If auditorProfileType is 'Consumer' or 'Both', auditorConsumingFromBusinessUnit is enabled.
- * 
- * The BU Owner and Auditor Custodian fields are read-only; they are updated only via the WorkerSearchModal.
- * The header indicates the subcategory and BU being edited.
- * When Save is clicked, an API call is made to /UpdateBUScopeData.
+ * EditBusinessUnitModal
+ * - Displays an edit form for one Business Unit.
+ * - BU Owner and Auditor Custodian fields are read-only and updated only via the WorkerSearchModal.
+ * - Conditional logic is applied: 
+ *   - If auditorIsInScope is 'No', Justification is enabled and required, and other fields are cleared.
+ *   - If auditorIsInScope is 'Yes', Justification is cleared/disabled, and maturityProjection, auditorProfileType, and departmentName are enabled.
+ *   - If auditorProfileType is 'Consumer' or 'Both', auditorConsumingFromBusinessUnit is enabled.
+ * - On Save, calls the /UpdateBUScopeData API and shows a success/error Snackbar.
+ * - The form state is reset each time the modal opens, so unsaved data is discarded if Cancel is clicked.
+ * - The header indicates which Subcategory and BU are being edited.
  */
 const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
   const [form, setForm] = useState({ ...businessUnit });
@@ -24,9 +24,12 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
   const [workerModalOpen, setWorkerModalOpen] = useState(false);
   const [editingField, setEditingField] = useState('');
 
+  // Reset the form each time the modal opens.
   useEffect(() => {
-    setForm({ ...businessUnit });
-  }, [businessUnit]);
+    if (open) {
+      setForm({ ...businessUnit });
+    }
+  }, [open, businessUnit]);
 
   const handleFieldChange = useCallback((field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -42,24 +45,24 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
   }, [editingField, handleFieldChange]);
 
   const handleSave = async () => {
-    // If In Scope changes, clear fields accordingly.
+    // If auditorIsInScope is changed to 'Yes', clear justification.
     if (form.auditorIsInScope === 'Yes') {
       handleFieldChange('auditorJustification', '');
     }
+    // If auditorIsInScope is 'No', clear fields not applicable.
     if (form.auditorIsInScope === 'No') {
-      // Clear fields not needed when In Scope is No.
       handleFieldChange('maturityProjection', '');
       handleFieldChange('auditorProfileType', '');
       handleFieldChange('auditorConsumingFromBusinessUnit', '');
       handleFieldChange('departmentName', '');
     }
-    // Validate: if In Scope is 'No', justification is required.
+    // Validate: if auditorIsInScope is 'No', justification must be provided.
     if (form.auditorIsInScope === 'No' && !form.auditorJustification) {
       setSnackbar({ open: true, message: 'Auditor Justification is required when In Scope is No.', severity: 'error' });
       return;
     }
 
-    // Build the payload using businessUnitAbbr and subcategoryName as keys.
+    // Build payload using businessUnitAbbr and subcategoryName as keys.
     const payload = {
       businessUnitAbbr: form.businessUnitAbbr,
       subcategoryName: form.subcategoryName,
@@ -84,7 +87,7 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
     }
   };
 
-  // Conditional enabling/disabling.
+  // Conditional enabling/disabling:
   const justificationDisabled = form.auditorIsInScope === 'Yes';
   const maturityEnabled = form.auditorIsInScope === 'Yes';
   const profileEnabled = form.auditorIsInScope === 'Yes';
@@ -94,12 +97,10 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
   return (
     <>
       <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-        {/* Header shows Subcategory and BU */}
         <DialogTitle>
           Edit Business Unit - {form.businessUnitAbbr} in {form.subcategoryName}
         </DialogTitle>
         <DialogContent>
-          {/* BU is read-only */}
           <TextField
             label="BU (Read Only)"
             value={form.businessUnitAbbr}
@@ -107,7 +108,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
             margin="normal"
             disabled
           />
-          {/* BU Owner: read-only input with label; updated only via worker search */}
           <Box display="flex" alignItems="center" mb={2}>
             <TextField
               label="BU Owner"
@@ -120,7 +120,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
               Edit
             </Button>
           </Box>
-          {/* Auditor Custodian: read-only input */}
           <Box display="flex" alignItems="center" mb={2}>
             <TextField
               label="Auditor Custodian"
@@ -133,7 +132,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
               Edit
             </Button>
           </Box>
-          {/* In Scope */}
           <TextField
             label="In Scope?"
             value={form.auditorIsInScope}
@@ -145,7 +143,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
             <MenuItem value="Yes">Yes</MenuItem>
             <MenuItem value="No">No</MenuItem>
           </TextField>
-          {/* Justification: enabled only when In Scope is 'No' */}
           <TextField
             label="Justification"
             value={form.auditorJustification}
@@ -154,7 +151,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
             margin="normal"
             disabled={justificationDisabled}
           />
-          {/* Maturity Projection: enabled only when In Scope is 'Yes' */}
           <TextField
             label="Maturity Projection"
             value={form.maturityProjection}
@@ -168,7 +164,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
               <MenuItem key={option} value={option}>{option}</MenuItem>
             ))}
           </TextField>
-          {/* Profile Type: enabled only when In Scope is 'Yes' */}
           <TextField
             label="Profile Type"
             value={form.auditorProfileType}
@@ -182,7 +177,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
               <MenuItem key={option} value={option}>{option}</MenuItem>
             ))}
           </TextField>
-          {/* Level 3 Info Panel */}
           <Collapse in={true} timeout="auto" unmountOnExit>
             <Box sx={{ p: 1, backgroundColor: '#f4f4f4', borderRadius: 1, mt: 1 }}>
               <Typography variant="h6">Profile Type Definitions</Typography>
@@ -194,7 +188,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
               </ul>
             </Box>
           </Collapse>
-          {/* Department Name: enabled only when In Scope is 'Yes' */}
           <TextField
             label="Department Name"
             value={form.departmentName}
@@ -203,7 +196,6 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
             margin="normal"
             disabled={!departmentEnabled}
           />
-          {/* Consuming From BU: enabled only if Profile Type is Consumer or Both */}
           <TextField
             label="Consuming From BU"
             value={form.auditorConsumingFromBusinessUnit}
@@ -234,9 +226,9 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
       >
-        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+        <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity}>
           {snackbar.message}
         </Alert>
       </Snackbar>
@@ -245,4 +237,3 @@ const EditBusinessUnitModal = ({ open, onClose, businessUnit, onSave }) => {
 };
 
 export default EditBusinessUnitModal;
-
