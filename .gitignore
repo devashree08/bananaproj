@@ -1,271 +1,260 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// components/Rescope/CustodianView/CustodianAccordion.jsx
+import React, { useEffect, useState } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Box, Button, TextField, MenuItem, Typography, Collapse,
-  Snackbar, Alert,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Typography,
+  Box,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Button,
+  TablePagination
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import axios from 'axios';
-import WorkerSearchModal from './WorkerSearchModal';
+import CustodianModal from './CustodianModal';
 
-const CustodianModal = ({ open, onClose, data, onSave }) => {
-  // Form state for all owner fields
-  const [form, setForm] = useState({});
-  // Controls launching the WorkerSearchModal for custodian lookup
-  const [workerModalOpen, setWorkerModalOpen] = useState(false);
-  // Which field is being edited
-  const [editingField, setEditingField] = useState('');
-  // Snackbar state
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
+const CustodianAccordion = () => {
+  const [data, setData] = useState([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentBU, setCurrentBU] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // Reset form on open
-  useEffect(() => {
-    if (open) {
-      setForm({
-        subcatOwnerAcceptAuditorRecommendation: data.subcatOwnerAcceptAuditorRecommendation ?? '',
-        subcatOwnerSubcatCustodian: data.subcatOwnerSubcatCustodian,
-        subcatOwnerIsInScope: data.subcatOwnerIsInScope,
-        subcatOwnerJustification: data.subcatOwnerJustification,
-        subcatOwnerMaturityProjection: data.subcatOwnerMaturityProjection,
-        subcatOwnerProfileType: data.subcatOwnerProfileType,
-        subcatOwnerConsumingFromBusinessUnit: data.subcatOwnerConsumingFromBusinessUnit,
-        subcatOwnerDepartmentName: data.subcatOwnerDepartmentName,
-      });
-    }
-  }, [open, data]);
-
-  const handleFieldChange = useCallback((field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-  }, []);
-
-  // When the user changes the accept‑recommendation select
-  const handleAcceptChange = (val) => {
-    handleFieldChange('subcatOwnerAcceptAuditorRecommendation', val);
-    if (val === 'Yes') {
-      // copy all auditor suggestions into the form
-      handleFieldChange('subcatOwnerSubcatCustodian', data.auditorSubcatCustodian);
-      handleFieldChange('subcatOwnerIsInScope', data.auditorIsInScope);
-      handleFieldChange('subcatOwnerJustification', data.auditorJustification);
-      handleFieldChange('subcatOwnerMaturityProjection', data.auditorMaturityProjection);
-      handleFieldChange('subcatOwnerProfileType', data.auditorProfileType);
-      handleFieldChange('subcatOwnerConsumingFromBusinessUnit', data.auditorConsumingFromBusinessUnit);
-      handleFieldChange('subcatOwnerDepartmentName', data.auditorDepartmentName);
-    }
-  };
-
-  // Launch worker search for Custodian field
-  const openWorkerModal = useCallback(() => {
-    setEditingField('subcatOwnerSubcatCustodian');
-    setWorkerModalOpen(true);
-  }, []);
-
-  const handleWorkerSelect = useCallback((value) => {
-    handleFieldChange(editingField, value);
-  }, [editingField, handleFieldChange]);
-
-  const handleSave = async () => {
-    // Validation: if out‑of‑scope, justification required
-    if (form.subcatOwnerIsInScope === 'No' && !form.subcatOwnerJustification) {
-      setSnackbar({ open: true, message: 'Justification required for Out‑of‑Scope', severity: 'error' });
-      return;
-    }
-    // Build payload
-    const payload = {
-      businessUnitAbbr: data.businessUnitAbbr,
-      subcategoryName: data.subcategoryName,
-      subcatOwnerAcceptAuditorRecommendation: form.subcatOwnerAcceptAuditorRecommendation,
-      subcatOwnerSubcatCustodian: form.subcatOwnerSubcatCustodian,
-      subcatOwnerIsInScope: form.subcatOwnerIsInScope,
-      subcatOwnerJustification: form.subcatOwnerJustification,
-      subcatOwnerMaturityProjection: form.subcatOwnerMaturityProjection,
-      subcatOwnerProfileType: form.subcatOwnerProfileType,
-      subcatOwnerConsumingFromBusinessUnit: form.subcatOwnerConsumingFromBusinessUnit,
-      subcatOwnerDepartmentName: form.subcatOwnerDepartmentName,
-    };
+  // Fetch and group the data by subcategoryId, adding a showAuditor flag to each BU
+  const fetchData = async () => {
     try {
-      await axios.post('/UpdateCustodianBUScopeData', payload);
-      onSave({ ...data, ...payload });
-      onClose();
-      setSnackbar({ open: true, message: 'Custodian data saved.', severity: 'success' });
+      const res = await axios.get('/api/GetBUScopeData');
+      const grouped = {};
+      res.data.forEach(item => {
+        const { subcategoryId, businessUnitAbbr } = item;
+        if (!grouped[subcategoryId]) {
+          grouped[subcategoryId] = {
+            subcategoryId,
+            subcategoryName: item.subcategoryName,
+            subcategoryDescription: item.subcategoryDescription,
+            relatedSubcategories: item.relatedCsf1_1Subcategories,
+            businessUnits: []
+          };
+        }
+        // dedupe by BU
+        if (
+          !grouped[subcategoryId].businessUnits.find(
+            bu => bu.businessUnitAbbr === businessUnitAbbr
+          )
+        ) {
+          grouped[subcategoryId].businessUnits.push({
+            ...item,
+            showAuditor: false, // for toggling Layer 3
+          });
+        }
+      });
+      setData(Object.values(grouped));
     } catch (err) {
-      console.error(err);
-      setSnackbar({ open: true, message: 'Error saving custodian data', severity: 'error' });
+      console.error('Error fetching scope data', err);
     }
   };
 
-  // Conditionals
-  const justDisabled = form.subcatOwnerIsInScope === 'Yes';
-  const maturityEnabled = form.subcatOwnerIsInScope === 'Yes';
-  const profileEnabled  = form.subcatOwnerIsInScope === 'Yes';
-  const consumeEnabled  = ['Consumer','Both'].includes(form.subcatOwnerProfileType);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Pagination helpers
+  const paged = data.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const handleChangePage = (e, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = e => {
+    setRowsPerPage(+e.target.value);
+    setPage(0);
+  };
+
+  // Toggle per‑BU auditor rec panel
+  const toggleAuditorRec = (subcatId, buAbbr) => {
+    setData(d =>
+      d.map(sc => {
+        if (sc.subcategoryId === subcatId) {
+          return {
+            ...sc,
+            businessUnits: sc.businessUnits.map(bu =>
+              bu.businessUnitAbbr === buAbbr
+                ? { ...bu, showAuditor: !bu.showAuditor }
+                : bu
+            )
+          };
+        }
+        return sc;
+      })
+    );
+  };
+
+  // Open modal to make changes
+  const openModal = bu => {
+    setCurrentBU(bu);
+    setModalOpen(true);
+  };
+
+  // Save callback updates only that one BU
+  const handleSave = updated => {
+    setData(d =>
+      d.map(sc => ({
+        ...sc,
+        businessUnits: sc.businessUnits.map(bu =>
+          bu.businessUnitAbbr === updated.businessUnitAbbr &&
+          sc.subcategoryName === updated.subcategoryName
+            ? { ...updated, showAuditor: false }
+            : bu
+        )
+      }))
+    );
+    setModalOpen(false);
+  };
 
   return (
-    <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-        <DialogTitle>
-          Review as Custodian — {data.subcategoryName} / {data.businessUnitAbbr}
-        </DialogTitle>
-        <DialogContent>
-          <Box display="flex" gap={2}>
-            {/* Auditor Suggestion Column */}
-            <Box flex={1}>
-              <Typography variant="subtitle2" gutterBottom>Auditor Suggestion:</Typography>
-              <TextField
-                label="Custodian" value={data.auditorSubcatCustodian}
-                fullWidth margin="normal" InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="In Scope?" value={data.auditorIsInScope}
-                fullWidth margin="normal" InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Justification" value={data.auditorJustification}
-                fullWidth margin="normal" multiline rows={2}
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Maturity Projection" value={data.auditorMaturityProjection}
-                fullWidth margin="normal" InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Profile Type" value={data.auditorProfileType}
-                fullWidth margin="normal" InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Consuming From BU" value={data.auditorConsumingFromBusinessUnit}
-                fullWidth margin="normal" InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Department" value={data.auditorDepartmentName}
-                fullWidth margin="normal" InputProps={{ readOnly: true }}
-              />
-            </Box>
-
-            {/* Custodian’s Decision Column */}
-            <Box flex={1}>
-              <Typography variant="subtitle2" gutterBottom>Your Decision</Typography>
-              <TextField
-                label="Accept Auditor Rec?" select
-                value={form.subcatOwnerAcceptAuditorRecommendation || ''}
-                onChange={e => handleAcceptChange(e.target.value)}
-                fullWidth margin="normal"
-              >
-                <MenuItem value="Yes">Yes</MenuItem>
-                <MenuItem value="No">No</MenuItem>
-              </TextField>
-
-              <Box display="flex" alignItems="center" mb={2}>
-                <TextField
-                  label="Custodian"
-                  value={form.subcatOwnerSubcatCustodian || ''}
-                  fullWidth margin="normal"
-                  InputProps={{ readOnly: true }}
-                />
-                <Button onClick={openWorkerModal} sx={{ ml:1 }} variant="outlined">Edit</Button>
+    <Box sx={{ m: 2 }}>
+      {paged.map(sc => (
+        <Accordion key={sc.subcategoryId}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box display="flex" width="100%">
+              <Box flex={1}>
+                <Typography variant="h6">{sc.subcategoryName}</Typography>
               </Box>
-
-              <TextField
-                label="In Scope?" select
-                value={form.subcatOwnerIsInScope || ''}
-                onChange={e => handleFieldChange('subcatOwnerIsInScope', e.target.value)}
-                fullWidth margin="normal"
-              >
-                <MenuItem value="Yes">Yes</MenuItem>
-                <MenuItem value="No">No</MenuItem>
-              </TextField>
-
-              <TextField
-                label="Justification"
-                value={form.subcatOwnerJustification || ''}
-                onChange={e => handleFieldChange('subcatOwnerJustification', e.target.value)}
-                fullWidth margin="normal"
-                disabled={justDisabled}
-              />
-              <TextField
-                label="Maturity Projection" select
-                value={form.subcatOwnerMaturityProjection || ''}
-                onChange={e => handleFieldChange('subcatOwnerMaturityProjection', e.target.value)}
-                fullWidth margin="normal"
-                disabled={!maturityEnabled}
-              >
-                {['Increase','Decrease','Maintain'].map(opt => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Profile Type" select
-                value={form.subcatOwnerProfileType || ''}
-                onChange={e => handleFieldChange('subcatOwnerProfileType', e.target.value)}
-                fullWidth margin="normal"
-                disabled={!profileEnabled}
-              >
-                {['Provider','Consumer','Both','Inheritor'].map(opt => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Consuming From BU" select
-                value={form.subcatOwnerConsumingFromBusinessUnit || ''}
-                onChange={e => handleFieldChange('subcatOwnerConsumingFromBusinessUnit', e.target.value)}
-                fullWidth margin="normal"
-                disabled={!consumeEnabled}
-              >
-                {['ABC','UIO','POA','SKA-C','Other'].map(opt => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Department"
-                value={form.subcatOwnerDepartmentName || ''}
-                onChange={e => handleFieldChange('subcatOwnerDepartmentName', e.target.value)}
-                fullWidth margin="normal"
-              />
+              <Box flex={2}>
+                <Typography>{sc.subcategoryDescription}</Typography>
+              </Box>
+              <Box flex={1}>
+                <Typography variant="caption">{sc.relatedSubcategories}</Typography>
+              </Box>
             </Box>
-          </Box>
+          </AccordionSummary>
 
-          {/* Info Panel */}
-          <Collapse in timeout="auto">
-            <Box sx={{ mt:2, p:1, backgroundColor:'#f4f4f4', borderRadius:1 }}>
-              <Typography variant="h6">Profile Type Definitions</Typography>
-              <ul style={{ margin:0, paddingLeft:16 }}>
-                <li><strong>Provider:</strong> Supplies services.</li>
-                <li><strong>Consumer:</strong> Receives services.</li>
-                <li><strong>Both:</strong> Both supply & receive.</li>
-                <li><strong>Inheritor:</strong> Inherits control.</li>
-              </ul>
-            </Box>
-          </Collapse>
-        </DialogContent>
+          <AccordionDetails>
+            <Table size="small">
+              <TableHead sx={{ backgroundColor: 'black' }}>
+                <TableRow>
+                  {[
+                    'BU',
+                    'Your Custodian',
+                    'In Scope?',
+                    'Justification',
+                    'Maturity',
+                    'Profile Type',
+                    'Consuming From BU',
+                    'Department',
+                    'Info',
+                    'Actions'
+                  ].map(header => (
+                    <TableCell
+                      key={header}
+                      sx={{ color: 'white', fontWeight: 'bold' }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
 
-        <DialogActions>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
+              <TableBody>
+                {sc.businessUnits.map(bu => (
+                  <React.Fragment key={bu.businessUnitAbbr}>
+                    <TableRow
+                      sx={{ '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}
+                    >
+                      <TableCell>{bu.businessUnitAbbr}</TableCell>
+                      <TableCell>{bu.subcatOwnerSubcatCustodian}</TableCell>
+                      <TableCell>{bu.subcatOwnerIsInScope}</TableCell>
+                      <TableCell>{bu.subcatOwnerJustification}</TableCell>
+                      <TableCell>{bu.subcatOwnerMaturityProjection}</TableCell>
+                      <TableCell>{bu.subcatOwnerProfileType}</TableCell>
+                      <TableCell>{bu.subcatOwnerConsumingFromBusinessUnit}</TableCell>
+                      <TableCell>{bu.subcatOwnerDepartmentName}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          onClick={() =>
+                            toggleAuditorRec(sc.subcategoryId, bu.businessUnitAbbr)
+                          }
+                        >
+                          {bu.showAuditor ? 'Hide Auditor Rec' : 'Show Auditor Rec'}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => openModal(bu)}
+                        >
+                          Make Changes
+                        </Button>
+                      </TableCell>
+                    </TableRow>
 
-      {/* Worker search for Custodian field */}
-      {workerModalOpen && (
-        <WorkerSearchModal
-          open={workerModalOpen}
-          onClose={() => setWorkerModalOpen(false)}
-          onSelect={handleWorkerSelect}
-          initialValue={form.subcatOwnerSubcatCustodian}
+                    {/* Layer 3: Auditor Recommendation */}
+                    {bu.showAuditor && (
+                      <TableRow>
+                        <TableCell colSpan={10} sx={{ backgroundColor: '#f4f4f4' }}>
+                          <Typography variant="subtitle2">
+                            Auditor Recommendation
+                          </Typography>
+                          <Box sx={{ pl: 2 }}>
+                            <Typography>
+                              <strong>Custodian:</strong> {bu.auditorSubcatCustodian}
+                            </Typography>
+                            <Typography>
+                              <strong>In Scope?:</strong> {bu.auditorIsInScope}
+                            </Typography>
+                            <Typography>
+                              <strong>Justification:</strong> {bu.auditorJustification}
+                            </Typography>
+                            <Typography>
+                              <strong>Maturity Projection:</strong> {bu.auditorMaturityProjection}
+                            </Typography>
+                            <Typography>
+                              <strong>Profile Type:</strong> {bu.auditorProfileType}
+                            </Typography>
+                            <Typography>
+                              <strong>Consuming From BU:</strong>{' '}
+                              {bu.auditorConsumingFromBusinessUnit}
+                            </Typography>
+                            <Typography>
+                              <strong>Department:</strong> {bu.auditorDepartmentName}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+
+      {/* Pagination for Level 1 (Subcategories) */}
+      <TablePagination
+        component="div"
+        count={data.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10, 20, 50]}
+      />
+
+      {/* Modal for making changes */}
+      {currentBU && (
+        <CustodianModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          data={currentBU}
+          onSave={handleSave}
         />
       )}
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar(s => ({ ...s, open:false }))}
-      >
-        <Alert 
-          onClose={() => setSnackbar(s => ({ ...s, open:false }))} 
-          severity={snackbar.severity}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </>
+    </Box>
   );
 };
 
-export default CustodianModal;
+export default CustodianAccordion;
