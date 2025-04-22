@@ -1,23 +1,271 @@
-import React, { useState } from 'react';
-import { ToggleButton, ToggleButtonGroup, Box, Typography } from '@mui/material';
-import AuditorAccordion from './AuditorView';       // from barrel
-import CustodianAccordion from './CustodianView';   // from barrel
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Box, Button, TextField, MenuItem, Typography, Collapse,
+  Snackbar, Alert,
+} from '@mui/material';
+import axios from 'axios';
+import WorkerSearchModal from './WorkerSearchModal';
 
-export default function RescopeDashboard() {
-  const [view, setView] = useState('auditor');
+const CustodianModal = ({ open, onClose, data, onSave }) => {
+  // Form state for all owner fields
+  const [form, setForm] = useState({});
+  // Controls launching the WorkerSearchModal for custodian lookup
+  const [workerModalOpen, setWorkerModalOpen] = useState(false);
+  // Which field is being edited
+  const [editingField, setEditingField] = useState('');
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
+
+  // Reset form on open
+  useEffect(() => {
+    if (open) {
+      setForm({
+        subcatOwnerAcceptAuditorRecommendation: data.subcatOwnerAcceptAuditorRecommendation ?? '',
+        subcatOwnerSubcatCustodian: data.subcatOwnerSubcatCustodian,
+        subcatOwnerIsInScope: data.subcatOwnerIsInScope,
+        subcatOwnerJustification: data.subcatOwnerJustification,
+        subcatOwnerMaturityProjection: data.subcatOwnerMaturityProjection,
+        subcatOwnerProfileType: data.subcatOwnerProfileType,
+        subcatOwnerConsumingFromBusinessUnit: data.subcatOwnerConsumingFromBusinessUnit,
+        subcatOwnerDepartmentName: data.subcatOwnerDepartmentName,
+      });
+    }
+  }, [open, data]);
+
+  const handleFieldChange = useCallback((field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  // When the user changes the accept‑recommendation select
+  const handleAcceptChange = (val) => {
+    handleFieldChange('subcatOwnerAcceptAuditorRecommendation', val);
+    if (val === 'Yes') {
+      // copy all auditor suggestions into the form
+      handleFieldChange('subcatOwnerSubcatCustodian', data.auditorSubcatCustodian);
+      handleFieldChange('subcatOwnerIsInScope', data.auditorIsInScope);
+      handleFieldChange('subcatOwnerJustification', data.auditorJustification);
+      handleFieldChange('subcatOwnerMaturityProjection', data.auditorMaturityProjection);
+      handleFieldChange('subcatOwnerProfileType', data.auditorProfileType);
+      handleFieldChange('subcatOwnerConsumingFromBusinessUnit', data.auditorConsumingFromBusinessUnit);
+      handleFieldChange('subcatOwnerDepartmentName', data.auditorDepartmentName);
+    }
+  };
+
+  // Launch worker search for Custodian field
+  const openWorkerModal = useCallback(() => {
+    setEditingField('subcatOwnerSubcatCustodian');
+    setWorkerModalOpen(true);
+  }, []);
+
+  const handleWorkerSelect = useCallback((value) => {
+    handleFieldChange(editingField, value);
+  }, [editingField, handleFieldChange]);
+
+  const handleSave = async () => {
+    // Validation: if out‑of‑scope, justification required
+    if (form.subcatOwnerIsInScope === 'No' && !form.subcatOwnerJustification) {
+      setSnackbar({ open: true, message: 'Justification required for Out‑of‑Scope', severity: 'error' });
+      return;
+    }
+    // Build payload
+    const payload = {
+      businessUnitAbbr: data.businessUnitAbbr,
+      subcategoryName: data.subcategoryName,
+      subcatOwnerAcceptAuditorRecommendation: form.subcatOwnerAcceptAuditorRecommendation,
+      subcatOwnerSubcatCustodian: form.subcatOwnerSubcatCustodian,
+      subcatOwnerIsInScope: form.subcatOwnerIsInScope,
+      subcatOwnerJustification: form.subcatOwnerJustification,
+      subcatOwnerMaturityProjection: form.subcatOwnerMaturityProjection,
+      subcatOwnerProfileType: form.subcatOwnerProfileType,
+      subcatOwnerConsumingFromBusinessUnit: form.subcatOwnerConsumingFromBusinessUnit,
+      subcatOwnerDepartmentName: form.subcatOwnerDepartmentName,
+    };
+    try {
+      await axios.post('/UpdateCustodianBUScopeData', payload);
+      onSave({ ...data, ...payload });
+      onClose();
+      setSnackbar({ open: true, message: 'Custodian data saved.', severity: 'success' });
+    } catch (err) {
+      console.error(err);
+      setSnackbar({ open: true, message: 'Error saving custodian data', severity: 'error' });
+    }
+  };
+
+  // Conditionals
+  const justDisabled = form.subcatOwnerIsInScope === 'Yes';
+  const maturityEnabled = form.subcatOwnerIsInScope === 'Yes';
+  const profileEnabled  = form.subcatOwnerIsInScope === 'Yes';
+  const consumeEnabled  = ['Consumer','Both'].includes(form.subcatOwnerProfileType);
+
   return (
-    <Box p={2}>
-      <Typography variant="h4">BU Rescope Portal</Typography>
-      <ToggleButtonGroup
-        value={view}
-        exclusive
-        onChange={(_, v) => v && setView(v)}
-        sx={{ my: 2 }}
+    <>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+        <DialogTitle>
+          Review as Custodian — {data.subcategoryName} / {data.businessUnitAbbr}
+        </DialogTitle>
+        <DialogContent>
+          <Box display="flex" gap={2}>
+            {/* Auditor Suggestion Column */}
+            <Box flex={1}>
+              <Typography variant="subtitle2" gutterBottom>Auditor Suggestion:</Typography>
+              <TextField
+                label="Custodian" value={data.auditorSubcatCustodian}
+                fullWidth margin="normal" InputProps={{ readOnly: true }}
+              />
+              <TextField
+                label="In Scope?" value={data.auditorIsInScope}
+                fullWidth margin="normal" InputProps={{ readOnly: true }}
+              />
+              <TextField
+                label="Justification" value={data.auditorJustification}
+                fullWidth margin="normal" multiline rows={2}
+                InputProps={{ readOnly: true }}
+              />
+              <TextField
+                label="Maturity Projection" value={data.auditorMaturityProjection}
+                fullWidth margin="normal" InputProps={{ readOnly: true }}
+              />
+              <TextField
+                label="Profile Type" value={data.auditorProfileType}
+                fullWidth margin="normal" InputProps={{ readOnly: true }}
+              />
+              <TextField
+                label="Consuming From BU" value={data.auditorConsumingFromBusinessUnit}
+                fullWidth margin="normal" InputProps={{ readOnly: true }}
+              />
+              <TextField
+                label="Department" value={data.auditorDepartmentName}
+                fullWidth margin="normal" InputProps={{ readOnly: true }}
+              />
+            </Box>
+
+            {/* Custodian’s Decision Column */}
+            <Box flex={1}>
+              <Typography variant="subtitle2" gutterBottom>Your Decision</Typography>
+              <TextField
+                label="Accept Auditor Rec?" select
+                value={form.subcatOwnerAcceptAuditorRecommendation || ''}
+                onChange={e => handleAcceptChange(e.target.value)}
+                fullWidth margin="normal"
+              >
+                <MenuItem value="Yes">Yes</MenuItem>
+                <MenuItem value="No">No</MenuItem>
+              </TextField>
+
+              <Box display="flex" alignItems="center" mb={2}>
+                <TextField
+                  label="Custodian"
+                  value={form.subcatOwnerSubcatCustodian || ''}
+                  fullWidth margin="normal"
+                  InputProps={{ readOnly: true }}
+                />
+                <Button onClick={openWorkerModal} sx={{ ml:1 }} variant="outlined">Edit</Button>
+              </Box>
+
+              <TextField
+                label="In Scope?" select
+                value={form.subcatOwnerIsInScope || ''}
+                onChange={e => handleFieldChange('subcatOwnerIsInScope', e.target.value)}
+                fullWidth margin="normal"
+              >
+                <MenuItem value="Yes">Yes</MenuItem>
+                <MenuItem value="No">No</MenuItem>
+              </TextField>
+
+              <TextField
+                label="Justification"
+                value={form.subcatOwnerJustification || ''}
+                onChange={e => handleFieldChange('subcatOwnerJustification', e.target.value)}
+                fullWidth margin="normal"
+                disabled={justDisabled}
+              />
+              <TextField
+                label="Maturity Projection" select
+                value={form.subcatOwnerMaturityProjection || ''}
+                onChange={e => handleFieldChange('subcatOwnerMaturityProjection', e.target.value)}
+                fullWidth margin="normal"
+                disabled={!maturityEnabled}
+              >
+                {['Increase','Decrease','Maintain'].map(opt => (
+                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Profile Type" select
+                value={form.subcatOwnerProfileType || ''}
+                onChange={e => handleFieldChange('subcatOwnerProfileType', e.target.value)}
+                fullWidth margin="normal"
+                disabled={!profileEnabled}
+              >
+                {['Provider','Consumer','Both','Inheritor'].map(opt => (
+                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Consuming From BU" select
+                value={form.subcatOwnerConsumingFromBusinessUnit || ''}
+                onChange={e => handleFieldChange('subcatOwnerConsumingFromBusinessUnit', e.target.value)}
+                fullWidth margin="normal"
+                disabled={!consumeEnabled}
+              >
+                {['ABC','UIO','POA','SKA-C','Other'].map(opt => (
+                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Department"
+                value={form.subcatOwnerDepartmentName || ''}
+                onChange={e => handleFieldChange('subcatOwnerDepartmentName', e.target.value)}
+                fullWidth margin="normal"
+              />
+            </Box>
+          </Box>
+
+          {/* Info Panel */}
+          <Collapse in timeout="auto">
+            <Box sx={{ mt:2, p:1, backgroundColor:'#f4f4f4', borderRadius:1 }}>
+              <Typography variant="h6">Profile Type Definitions</Typography>
+              <ul style={{ margin:0, paddingLeft:16 }}>
+                <li><strong>Provider:</strong> Supplies services.</li>
+                <li><strong>Consumer:</strong> Receives services.</li>
+                <li><strong>Both:</strong> Both supply & receive.</li>
+                <li><strong>Inheritor:</strong> Inherits control.</li>
+              </ul>
+            </Box>
+          </Collapse>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Worker search for Custodian field */}
+      {workerModalOpen && (
+        <WorkerSearchModal
+          open={workerModalOpen}
+          onClose={() => setWorkerModalOpen(false)}
+          onSelect={handleWorkerSelect}
+          initialValue={form.subcatOwnerSubcatCustodian}
+        />
+      )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(s => ({ ...s, open:false }))}
       >
-        <ToggleButton value="auditor">Auditor View</ToggleButton>
-        <ToggleButton value="custodian">Custodian View</ToggleButton>
-      </ToggleButtonGroup>
-      {view === 'auditor' ? <AuditorAccordion /> : <CustodianAccordion />}
-    </Box>
+        <Alert 
+          onClose={() => setSnackbar(s => ({ ...s, open:false }))} 
+          severity={snackbar.severity}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </>
   );
-}
+};
+
+export default CustodianModal;
