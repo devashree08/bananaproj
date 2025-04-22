@@ -1,41 +1,14 @@
-const confirmAccept = useCallback(async () => {
-  setConfirmOpen(false);
-  if (!confirmBU) return;
-  try {
-    // Build full payload: copy auditor→owner fields here
-    const payload = {
-      businessUnitAbbr: confirmBU.businessUnitAbbr,
-      subcategoryName: confirmBU.subcategoryName,
-      subcatOwnerAcceptAuditorRecommendation: 'Yes',
-      subcatOwnerSubcatCustodian: confirmBU.auditorSubcatCustodian,
-      subcatOwnerIsInScope:            confirmBU.auditorIsInScope,
-      subcatOwnerJustification:        confirmBU.auditorJustification,
-      subcatOwnerMaturityProjection:   confirmBU.auditorMaturityProjection,
-      subcatOwnerProfileType:          confirmBU.auditorProfileType,
-      subcatOwnerConsumingFromBusinessUnit:
-                                        confirmBU.auditorConsumingFromBusinessUnit,
-      subcatOwnerDepartmentName:       confirmBU.auditorDepartmentName,
-    };
-
-    // Send the full owner‑update payload
-    await axios.post('/UpdateCustodianBUScopeData', payload);
-
-    // Update the UI in one go
-    setData(d =>
-      d.map(sc => ({
-        ...sc,
-        businessUnits: sc.businessUnits.map(bu =>
-          bu.businessUnitAbbr === confirmBU.businessUnitAbbr &&
-          sc.subcategoryName === confirmBU.subcategoryName
-            ? { ...bu, ...payload, showAuditor: true }
-            : bu
-        )
-      }))
-    );
-
-    setSnackbar({ open: true, message: 'Recommendations accepted', severity: 'success' });
-  } catch (err) {
-    console.error('Error accepting recommendations', err);
-    setSnackbar({ open: true, message: 'Failed to accept recommendations', severity: 'error' });
-  }
-}, [confirmBU]);
+      {/* Global Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(s => ({ ...s, open: false }))}
+      >
+        <Alert
+          onClose={() => setSnackbar(s => ({ ...s, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
