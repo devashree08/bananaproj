@@ -16,19 +16,23 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import axios from 'axios';
+import ScopeDataFilters from '../Shared/ScopeDataFilters';
 import CustodianModal from './CustodianModal';
 
 const CustodianAccordion = () => {
   const [data, setData] = useState([]);
+  const [filters, setFilters] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentBU, setCurrentBU] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Fetch and group the data by subcategoryId, adding a showAuditor flag to each BU
-  const fetchData = async () => {
+  // Fetch & group data, applying filters as query params
+  const fetchData = async (filterParams) => {
     try {
-      const res = await axios.get('/api/GetBUScopeData');
+      const res = await axios.get('/api/GetBUScopeData', {
+        params: filterParams || {}
+      });
       const grouped = {};
       res.data.forEach(item => {
         const { subcategoryId, businessUnitAbbr } = item;
@@ -41,7 +45,6 @@ const CustodianAccordion = () => {
             businessUnits: []
           };
         }
-        // dedupe by BU
         if (
           !grouped[subcategoryId].businessUnits.find(
             bu => bu.businessUnitAbbr === businessUnitAbbr
@@ -49,7 +52,7 @@ const CustodianAccordion = () => {
         ) {
           grouped[subcategoryId].businessUnits.push({
             ...item,
-            showAuditor: false, // for toggling Layer 3
+            showAuditor: false,
           });
         }
       });
@@ -59,19 +62,26 @@ const CustodianAccordion = () => {
     }
   };
 
+  // Initial & filtered fetch
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(filters);
+  }, [filters]);
 
-  // Pagination helpers
+  // Pagination
   const paged = data.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
-  const handleChangePage = (e, newPage) => setPage(newPage);
+  const handleChangePage = (_, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = e => {
     setRowsPerPage(+e.target.value);
     setPage(0);
   };
 
-  // Toggle per‑BU auditor rec panel
+  // When filters change, reset page and apply
+  const handleFilterChange = (filterValues) => {
+    setFilters(filterValues);
+    setPage(0);
+  };
+
+  // Toggle showing auditor rec for a given BU
   const toggleAuditorRec = (subcatId, buAbbr) => {
     setData(d =>
       d.map(sc => {
@@ -90,7 +100,7 @@ const CustodianAccordion = () => {
     );
   };
 
-  // Open modal to make changes
+  // Open the edit modal
   const openModal = bu => {
     setCurrentBU(bu);
     setModalOpen(true);
@@ -112,56 +122,61 @@ const CustodianAccordion = () => {
     setModalOpen(false);
   };
 
+  // Prepare filter options from loaded data
+  const filterOptions = {
+    subcategoryNames: data.map(d => d.subcategoryName),
+    bus: ['ABC','UIO','POA','SKA-C'],
+    buOwners: Array.from(new Set(data.flatMap(d => d.businessUnits.map(bu => bu.businessUnitOwner)))),
+    subcatCustodians: Array.from(new Set(data.flatMap(d => d.businessUnits.map(bu => bu.subcatOwnerSubcatCustodian)))),
+    inScopeOptions: ['Yes','No'],
+    profileTypes: ['Provider','Consumer','Both','Inheritor']
+  };
+
   return (
     <Box sx={{ m: 2 }}>
+      {/* Filters */}
+      <ScopeDataFilters
+        onFilterChange={handleFilterChange}
+        filterOptions={filterOptions}
+      />
+
+      {/* Level 1 Header */}
+      <Box display="flex" sx={{ borderBottom: '1px solid #ccc', mb: 2, p: 1 }}>
+        <Box flex={1}><Typography variant="subtitle1" fontWeight="bold">Subcategory</Typography></Box>
+        <Box flex={2}><Typography variant="subtitle1" fontWeight="bold">Description</Typography></Box>
+        <Box flex={1}><Typography variant="subtitle1" fontWeight="bold">Related CSF</Typography></Box>
+      </Box>
+
+      {/* Accordions for each subcategory */}
       {paged.map(sc => (
         <Accordion key={sc.subcategoryId}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box display="flex" width="100%">
-              <Box flex={1}>
-                <Typography variant="h6">{sc.subcategoryName}</Typography>
-              </Box>
-              <Box flex={2}>
-                <Typography>{sc.subcategoryDescription}</Typography>
-              </Box>
-              <Box flex={1}>
-                <Typography variant="caption">{sc.relatedSubcategories}</Typography>
-              </Box>
+              <Box flex={1}><Typography variant="h6">{sc.subcategoryName}</Typography></Box>
+              <Box flex={2}><Typography>{sc.subcategoryDescription}</Typography></Box>
+              <Box flex={1}><Typography variant="caption">{sc.relatedSubcategories}</Typography></Box>
             </Box>
           </AccordionSummary>
 
           <AccordionDetails>
+            {/* Level 2 Table */}
             <Table size="small">
               <TableHead sx={{ backgroundColor: 'black' }}>
                 <TableRow>
                   {[
-                    'BU',
-                    'Your Custodian',
-                    'In Scope?',
-                    'Justification',
-                    'Maturity',
-                    'Profile Type',
-                    'Consuming From BU',
-                    'Department',
-                    'Info',
-                    'Actions'
+                    'BU','Your Custodian','In Scope?','Justification',
+                    'Maturity','Profile','Consuming From BU','Dept','Info','Actions'
                   ].map(header => (
-                    <TableCell
-                      key={header}
-                      sx={{ color: 'white', fontWeight: 'bold' }}
-                    >
+                    <TableCell key={header} sx={{ color: 'white', fontWeight: 'bold' }}>
                       {header}
                     </TableCell>
                   ))}
                 </TableRow>
               </TableHead>
-
               <TableBody>
                 {sc.businessUnits.map(bu => (
                   <React.Fragment key={bu.businessUnitAbbr}>
-                    <TableRow
-                      sx={{ '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}
-                    >
+                    <TableRow sx={{ '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}>
                       <TableCell>{bu.businessUnitAbbr}</TableCell>
                       <TableCell>{bu.subcatOwnerSubcatCustodian}</TableCell>
                       <TableCell>{bu.subcatOwnerIsInScope}</TableCell>
@@ -191,36 +206,19 @@ const CustodianAccordion = () => {
                       </TableCell>
                     </TableRow>
 
-                    {/* Layer 3: Auditor Recommendation */}
+                    {/* Level 3: Auditor Recommendation Panel */}
                     {bu.showAuditor && (
                       <TableRow>
-                        <TableCell colSpan={10} sx={{ backgroundColor: '#f4f4f4' }}>
-                          <Typography variant="subtitle2">
-                            Auditor Recommendation
-                          </Typography>
+                        <TableCell colSpan={10} sx={{ backgroundColor: '#f4f4f4', p: 1 }}>
+                          <Typography variant="subtitle2">Auditor Recommendation</Typography>
                           <Box sx={{ pl: 2 }}>
-                            <Typography>
-                              <strong>Custodian:</strong> {bu.auditorSubcatCustodian}
-                            </Typography>
-                            <Typography>
-                              <strong>In Scope?:</strong> {bu.auditorIsInScope}
-                            </Typography>
-                            <Typography>
-                              <strong>Justification:</strong> {bu.auditorJustification}
-                            </Typography>
-                            <Typography>
-                              <strong>Maturity Projection:</strong> {bu.auditorMaturityProjection}
-                            </Typography>
-                            <Typography>
-                              <strong>Profile Type:</strong> {bu.auditorProfileType}
-                            </Typography>
-                            <Typography>
-                              <strong>Consuming From BU:</strong>{' '}
-                              {bu.auditorConsumingFromBusinessUnit}
-                            </Typography>
-                            <Typography>
-                              <strong>Department:</strong> {bu.auditorDepartmentName}
-                            </Typography>
+                            <Typography><strong>Custodian:</strong> {bu.auditorSubcatCustodian}</Typography>
+                            <Typography><strong>In Scope?:</strong> {bu.auditorIsInScope}</Typography>
+                            <Typography><strong>Justification:</strong> {bu.auditorJustification}</Typography>
+                            <Typography><strong>Maturity:</strong> {bu.auditorMaturityProjection}</Typography>
+                            <Typography><strong>Profile:</strong> {bu.auditorProfileType}</Typography>
+                            <Typography><strong>Consuming From BU:</strong> {bu.auditorConsumingFromBusinessUnit}</Typography>
+                            <Typography><strong>Department:</strong> {bu.auditorDepartmentName}</Typography>
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -233,7 +231,7 @@ const CustodianAccordion = () => {
         </Accordion>
       ))}
 
-      {/* Pagination for Level 1 (Subcategories) */}
+      {/* Pagination */}
       <TablePagination
         component="div"
         count={data.length}
@@ -244,7 +242,7 @@ const CustodianAccordion = () => {
         rowsPerPageOptions={[10, 20, 50]}
       />
 
-      {/* Modal for making changes */}
+      {/* Edit Modal */}
       {currentBU && (
         <CustodianModal
           open={modalOpen}
