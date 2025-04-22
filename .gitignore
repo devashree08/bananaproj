@@ -1,6 +1,23 @@
-ubcategoryNames: data.map(d => d.subcategoryName),
-          bus: ['ABC', 'UIO', 'POA', 'SKA-C'],
-          buOwners: Array.from(new Set(data.flatMap(d => d.businessUnits.map(bu => bu.businessUnitOwner)))),
-          subcatCustodians: Array.from(new Set(data.flatMap(d => d.businessUnits.map(bu => bu.auditorSubcatCustodian)))),
-          inScopeOptions: ['Yes', 'No'],
-          profileTypes: ['Provider', 'Consumer', 'Both', 'Inheritor']
+import React, { useState } from 'react';
+import { ToggleButton, ToggleButtonGroup, Box, Typography } from '@mui/material';
+import AuditorAccordion from './AuditorView';       // from barrel
+import CustodianAccordion from './CustodianView';   // from barrel
+
+export default function RescopeDashboard() {
+  const [view, setView] = useState('auditor');
+  return (
+    <Box p={2}>
+      <Typography variant="h4">BU Rescope Portal</Typography>
+      <ToggleButtonGroup
+        value={view}
+        exclusive
+        onChange={(_, v) => v && setView(v)}
+        sx={{ my: 2 }}
+      >
+        <ToggleButton value="auditor">Auditor View</ToggleButton>
+        <ToggleButton value="custodian">Custodian View</ToggleButton>
+      </ToggleButtonGroup>
+      {view === 'auditor' ? <AuditorAccordion /> : <CustodianAccordion />}
+    </Box>
+  );
+}
