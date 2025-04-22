@@ -1,4 +1,282 @@
-{/* Level 3: Auditor Recommendation in a grid */}
+// components/Rescope/CustodianView/CustodianAccordion.jsx
+import React, { useEffect, useState } from 'react';
+import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Typography,
+  Box,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TablePagination
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CheckIcon from '@mui/icons-material/Check';
+import EditIcon from '@mui/icons-material/Edit';
+import axios from 'axios';
+import ScopeDataFilters from '../Shared/ScopeDataFilters';
+import CustodianModal from './CustodianModal';
+
+const CustodianAccordion = () => {
+  const [data, setData] = useState([]);
+  const [filters, setFilters] = useState(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentBU, setCurrentBU] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  // Confirmation dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmBU, setConfirmBU] = useState(null);
+
+  // Fetch & group data, defaulting showAuditor=true
+  const fetchData = async (filterParams) => {
+    try {
+      const res = await axios.get('/api/GetBUScopeData', {
+        params: filterParams || {}
+      });
+      const grouped = {};
+      res.data.forEach(item => {
+        const { subcategoryId, businessUnitAbbr } = item;
+        if (!grouped[subcategoryId]) {
+          grouped[subcategoryId] = {
+            subcategoryId,
+            subcategoryName: item.subcategoryName,
+            subcategoryDescription: item.subcategoryDescription,
+            relatedSubcategories: item.relatedCsf1_1Subcategories,
+            businessUnits: []
+          };
+        }
+        if (
+          !grouped[subcategoryId].businessUnits.find(
+            bu => bu.businessUnitAbbr === businessUnitAbbr
+          )
+        ) {
+          grouped[subcategoryId].businessUnits.push({
+            ...item,
+            showAuditor: true,
+          });
+        }
+      });
+      setData(Object.values(grouped));
+    } catch (err) {
+      console.error('Error fetching scope data', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData(filters);
+  }, [filters]);
+
+  // Pagination
+  const paged = data.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const handleChangePage = (_, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = e => {
+    setRowsPerPage(+e.target.value);
+    setPage(0);
+  };
+
+  // Reset page on filter change
+  const handleFilterChange = (filterValues) => {
+    setFilters(filterValues);
+    setPage(0);
+  };
+
+  // Toggle per‑BU auditor rec panel
+  const toggleAuditorRec = (subcatId, buAbbr) => {
+    setData(d =>
+      d.map(sc => {
+        if (sc.subcategoryId === subcatId) {
+          return {
+            ...sc,
+            businessUnits: sc.businessUnits.map(bu =>
+              bu.businessUnitAbbr === buAbbr
+                ? { ...bu, showAuditor: !bu.showAuditor }
+                : bu
+            )
+          };
+        }
+        return sc;
+      })
+    );
+  };
+
+  // Open "Make Changes" modal
+  const openModal = bu => {
+    setCurrentBU(bu);
+    setModalOpen(true);
+  };
+
+  // Save callback from modal
+  const handleSave = updated => {
+    setData(d =>
+      d.map(sc => ({
+        ...sc,
+        businessUnits: sc.businessUnits.map(bu =>
+          bu.businessUnitAbbr === updated.businessUnitAbbr &&
+          sc.subcategoryName === updated.subcategoryName
+            ? { ...updated, showAuditor: true }
+            : bu
+        )
+      }))
+    );
+    setModalOpen(false);
+  };
+
+  // Open confirmation for Accept Recommendations
+  const promptAccept = bu => {
+    setConfirmBU(bu);
+    setConfirmOpen(true);
+  };
+
+  // Perform Accept Recommendations
+  const confirmAccept = async () => {
+    const bu = confirmBU;
+    setConfirmOpen(false);
+    if (!bu) return;
+    try {
+      await axios.post('/UpdateCustodianBUScopeData', {
+        businessUnitAbbr: bu.businessUnitAbbr,
+        subcategoryName: bu.subcategoryName,
+        subcatOwnerAcceptAuditorRecommendation: 'Yes'
+      });
+      // Update UI: copy auditor→owner fields
+      setData(d =>
+        d.map(sc => ({
+          ...sc,
+          businessUnits: sc.businessUnits.map(row => {
+            if (
+              row.businessUnitAbbr === bu.businessUnitAbbr &&
+              sc.subcategoryName === bu.subcategoryName
+            ) {
+              return {
+                ...row,
+                subcatOwnerAcceptAuditorRecommendation: 'Yes',
+                subcatOwnerSubcatCustodian: row.auditorSubcatCustodian,
+                subcatOwnerIsInScope: row.auditorIsInScope,
+                subcatOwnerJustification: row.auditorJustification,
+                subcatOwnerMaturityProjection: row.auditorMaturityProjection,
+                subcatOwnerProfileType: row.auditorProfileType,
+                subcatOwnerConsumingFromBusinessUnit: row.auditorConsumingFromBusinessUnit,
+                subcatOwnerDepartmentName: row.auditorDepartmentName
+              };
+            }
+            return row;
+          })
+        }))
+      );
+    } catch (err) {
+      console.error('Error accepting recommendations', err);
+      // Could show a Snackbar here if you have one
+    }
+  };
+
+  // Prepare filter options
+  const filterOptions = {
+    subcategoryNames: data.map(d => d.subcategoryName),
+    bus: ['ABC','UIO','POA','SKA-C'],
+    buOwners: Array.from(new Set(data.flatMap(d => d.businessUnits.map(bu => bu.businessUnitOwner)))),
+    subcatCustodians: Array.from(new Set(data.flatMap(d => d.businessUnits.map(bu => bu.subcatOwnerSubcatCustodian)))),
+    inScopeOptions: ['Yes','No'],
+    profileTypes: ['Provider','Consumer','Both','Inheritor']
+  };
+
+  return (
+    <Box sx={{ m: 2 }}>
+      {/* Filters */}
+      <ScopeDataFilters onFilterChange={handleFilterChange} filterOptions={filterOptions} />
+
+      {/* Level 1 header */}
+      <Box display="flex" sx={{ borderBottom: '1px solid #ccc', mb: 2, p: 1 }}>
+        <Box flex={1}><Typography fontWeight="bold">Subcategory</Typography></Box>
+        <Box flex={2}><Typography fontWeight="bold">Description</Typography></Box>
+        <Box flex={1}><Typography fontWeight="bold">Related CSF</Typography></Box>
+      </Box>
+
+      {/* Accordions */}
+      {paged.map(sc => (
+        <Accordion key={sc.subcategoryId}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box display="flex" width="100%">
+              <Box flex={1}><Typography variant="h6">{sc.subcategoryName}</Typography></Box>
+              <Box flex={2}><Typography>{sc.subcategoryDescription}</Typography></Box>
+              <Box flex={1}><Typography variant="caption">{sc.relatedSubcategories}</Typography></Box>
+            </Box>
+          </AccordionSummary>
+
+          <AccordionDetails>
+            {/* Level 2 Table */}
+            <Table size="small">
+              <TableHead sx={{ backgroundColor: 'black' }}>
+                <TableRow>
+                  {[
+                    'BU','Your Custodian','In Scope?','Justification',
+                    'Maturity','Profile','Consuming From BU','Dept','Info','Actions'
+                  ].map(h => (
+                    <TableCell key={h} sx={{ color: 'white', fontWeight: 'bold' }}>
+                      {h}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sc.businessUnits.map(bu => (
+                  <React.Fragment key={bu.businessUnitAbbr}>
+                    <TableRow sx={{ '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}>
+                      <TableCell>{bu.businessUnitAbbr}</TableCell>
+                      <TableCell>{bu.subcatOwnerSubcatCustodian}</TableCell>
+                      <TableCell>{bu.subcatOwnerIsInScope}</TableCell>
+                      <TableCell>{bu.subcatOwnerJustification}</TableCell>
+                      <TableCell>{bu.subcatOwnerMaturityProjection}</TableCell>
+                      <TableCell>{bu.subcatOwnerProfileType}</TableCell>
+                      <TableCell>{bu.subcatOwnerConsumingFromBusinessUnit}</TableCell>
+                      <TableCell>{bu.subcatOwnerDepartmentName}</TableCell>
+
+                      {/* Info */}
+                      <TableCell>
+                        <Tooltip title={bu.showAuditor ? 'Hide Auditor Rec' : 'Show Auditor Rec'}>
+                          <Button
+                            size="small"
+                            onClick={() =>
+                              toggleAuditorRec(sc.subcategoryId, bu.businessUnitAbbr)
+                            }
+                          >
+                            Info
+                          </Button>
+                        </Tooltip>
+                      </TableCell>
+
+                      {/* Actions: Accept & Edit */}
+                      <TableCell>
+                        <Tooltip title="Accept Recommendations">
+                          <IconButton
+                            size="small"
+                            onClick={() => promptAccept(bu)}
+                          >
+                            <CheckIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Make Changes">
+                          <IconButton
+                            size="small"
+                            onClick={() => openModal(bu)}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Level 3: Auditor Recommendation in a grid */}
                     {bu.showAuditor && (
                       <TableRow>
                         <TableCell colSpan={10} sx={{ backgroundColor: '#f4f4f4', p: 2 }}>
@@ -21,3 +299,48 @@
                         </TableCell>
                       </TableRow>
                     )}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+
+      {/* Pagination */}
+      <TablePagination
+        component="div"
+        count={data.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10,20,50]}
+      />
+
+      {/* Edit Modal */}
+      {currentBU && (
+        <CustodianModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          data={currentBU}
+          onSave={handleSave}
+        />
+      )}
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Confirm Accept</DialogTitle>
+        <DialogContent>
+          Are you sure you want to accept the Auditor’s recommendations?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={confirmAccept} variant="contained">Yes</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default CustodianAccordion;
