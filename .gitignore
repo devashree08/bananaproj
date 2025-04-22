@@ -1,51 +1,29 @@
-   <Box
-            sx={{
-              backgroundColor: '#EBEBF2',
-              p: 2,
-              borderRadius: 1,
-              mb: 1,
-            }}
-          >
-            <Typography variant="subtitle2">
-              Auditor Recommendation (In Scope?):{' '}
-              <strong>{data.auditorIsInScope}</strong>
-            </Typography>
-          </Box>
-          <TextField
-            select
-            label="In Scope?"
-            variant="outlined"
-            value={form.subcatOwnerIsInScope}
-            onChange={e => handleChange('subcatOwnerIsInScope', e.target.value)}
-            fullWidth
-            margin="normal"
-          >
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </TextField>
+const filterOptions = useMemo(() => {
+  // helper to pull out, split, trim, and dedupe a given field across all BUs
+  const extractNames = field =>
+    Array.from(
+      new Set(
+        data.flatMap((sc) =>
+          sc.businessUnits
+            .map((bu) => bu[field] || '')       // guard against null/undefined
+            .flatMap((names) =>
+              names
+                .split(',')                     // split comma‑separated
+                .map((s) => s.trim())           // trim whitespace
+                .filter((s) => s.length > 0)    // drop empty
+            )
+        )
+      )
+    );
 
-          {/* Justification */}
-          <Box
-            sx={{
-              backgroundColor: '#EBEBF2',
-              p: 2,
-              borderRadius: 1,
-              mb: 1,
-            }}
-          >
-            <Typography variant="subtitle2">
-              Auditor Recommendation (Justification):{' '}
-              <strong>{data.auditorJustification || '—'}</strong>
-            </Typography>
-          </Box>
-          <TextField
-            label="Justification"
-            variant="outlined"
-            value={form.subcatOwnerJustification}
-            onChange={e => handleChange('subcatOwnerJustification', e.target.value)}
-            fullWidth
-            margin="normal"
-            multiline
-            rows={2}
-            disabled={justDisabled}
-          />
+  return {
+    subcategoryNames: Array.from(
+      new Set(data.map((sc) => sc.subcategoryName || '').filter(Boolean))
+    ),
+    bus: ['ABC', 'UIO', 'POA', 'SKA-C'],         // static list
+    buOwners: extractNames('businessUnitOwner'),
+    subcatCustodians: extractNames('auditorSubcatCustodian'),
+    inScopeOptions: ['Yes', 'No'],
+    profileTypes: ['Provider', 'Consumer', 'Both', 'Inheritor'],
+  };
+}, [data]);
