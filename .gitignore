@@ -1,23 +1,51 @@
-    {/* Accept Auditor Recommendation */}
+   <Box
+            sx={{
+              backgroundColor: '#EBEBF2',
+              p: 2,
+              borderRadius: 1,
+              mb: 1,
+            }}
+          >
+            <Typography variant="subtitle2">
+              Auditor Recommendation (In Scope?):{' '}
+              <strong>{data.auditorIsInScope}</strong>
+            </Typography>
+          </Box>
           <TextField
             select
-            label="Accept Auditor Recommendation?"
+            label="In Scope?"
             variant="outlined"
-            value={form.subcatOwnerAcceptAuditorRecommendation}
-            onChange={e =>
-              handleChange('subcatOwnerAcceptAuditorRecommendation', e.target.value)
-            }
+            value={form.subcatOwnerIsInScope}
+            onChange={e => handleChange('subcatOwnerIsInScope', e.target.value)}
             fullWidth
             margin="normal"
-            SelectProps={{
-              MenuProps: {
-                PaperProps: { style: { maxHeight: 200 } },
-                anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
-                transformOrigin: { vertical: 'top', horizontal: 'left' },
-                getContentAnchorEl: null,
-              },
-            }}
           >
             <MenuItem value="Yes">Yes</MenuItem>
             <MenuItem value="No">No</MenuItem>
           </TextField>
+
+          {/* Justification */}
+          <Box
+            sx={{
+              backgroundColor: '#EBEBF2',
+              p: 2,
+              borderRadius: 1,
+              mb: 1,
+            }}
+          >
+            <Typography variant="subtitle2">
+              Auditor Recommendation (Justification):{' '}
+              <strong>{data.auditorJustification || '—'}</strong>
+            </Typography>
+          </Box>
+          <TextField
+            label="Justification"
+            variant="outlined"
+            value={form.subcatOwnerJustification}
+            onChange={e => handleChange('subcatOwnerJustification', e.target.value)}
+            fullWidth
+            margin="normal"
+            multiline
+            rows={2}
+            disabled={justDisabled}
+          />
