@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Box, Button, TextField, MenuItem, Typography, Snackbar, Alert
+  Box, Button, TextField, MenuItem, Typography, Snackbar, Alert, Divider
 } from '@mui/material';
 import WorkerSearchModal from '../Shared/WorkerSearchModal';
 import axios from 'axios';
@@ -107,6 +107,7 @@ const CustodianModal = ({ open, onClose, data, onSave }) => {
           Edit Custodian — {data.subcategoryName} / {data.businessUnitAbbr}
         </DialogTitle>
         <DialogContent dividers>
+          {/* Accept Auditor Recommendation */}
           <TextField
             label="Accept Auditor Recommendation?"
             select
@@ -238,6 +239,18 @@ const CustodianModal = ({ open, onClose, data, onSave }) => {
             fullWidth
             margin="normal"
           />
+
+          {/* Profile Type Definitions */}
+          <Divider sx={{ my: 2 }} />
+          <Box sx={{ backgroundColor: '#f4f4f4', p: 2, borderRadius: 1 }}>
+            <Typography variant="h6" gutterBottom>Profile Type Definitions</Typography>
+            <ul style={{ margin: 0, paddingLeft: 16 }}>
+              <li><strong>Provider:</strong> Supplies services to other BUs.</li>
+              <li><strong>Consumer:</strong> Receives services from other BUs.</li>
+              <li><strong>Both:</strong> Acts as both Provider & Consumer.</li>
+              <li><strong>Inheritor:</strong> Inherits control from another BU.</li>
+            </ul>
+          </Box>
         </DialogContent>
 
         <DialogActions>
