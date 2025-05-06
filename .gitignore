@@ -1,29 +1,50 @@
-DECLARE @columns NVARCHAR(MAX),
-        @sql NVARCHAR(MAX);
+-- Step 1: Define dynamic column list
+DECLARE @columns NVARCHAR(MAX);
+DECLARE @sql NVARCHAR(MAX);
 
--- Build list of metric columns to unpivot
+-- Build column list excluding fixed columns
 SELECT @columns = STRING_AGG(QUOTENAME(name), ',')
 FROM sys.columns
 WHERE object_id = OBJECT_ID('dbo.AllApps')
-  AND name NOT IN ('AppId', 'ReportMonth');  -- exclude non-metrics
+  AND name NOT IN ('AppId', 'ReportMonth');
 
--- Construct dynamic SQL
+-- Step 2: Build dynamic SQL
 SET @sql = '
 SELECT 
-    a.AppId,
-    a.ReportMonth,
-    unpvt.MetricName,
-    unpvt.MetricValue,
-    m.Status,
-    m.MetricTextColor,
-    m.MetricBackgroundColor
+    AppId,
+    ReportMonth,
+    MetricName,
+    MetricValue,
+
+    -- Derived Status
+    CASE 
+        WHEN MetricName = ''Availability'' AND MetricValue >= 99 THEN ''Good''
+        WHEN MetricName = ''Availability'' THEN ''Poor''
+        WHEN MetricName = ''Performance'' AND MetricValue >= 90 THEN ''Good''
+        WHEN MetricName = ''Performance'' THEN ''Average''
+        ELSE ''Unknown''
+    END AS Status,
+
+    -- Derived MetricTextColor
+    CASE 
+        WHEN MetricName = ''Availability'' THEN ''Green''
+        WHEN MetricName = ''Performance'' THEN ''Orange''
+        ELSE ''Black''
+    END AS MetricTextColor,
+
+    -- Derived MetricBackgroundColor
+    CASE 
+        WHEN MetricName = ''Availability'' THEN ''White''
+        WHEN MetricName = ''Performance'' THEN ''Gray''
+        ELSE ''Transparent''
+    END AS MetricBackgroundColor
+
 FROM 
-    dbo.AllApps a
+    (SELECT AppId, ReportMonth, ' + @columns + ' FROM dbo.AllApps) AS src
 UNPIVOT (
     MetricValue FOR MetricName IN (' + @columns + ')
-) AS unpvt
-LEFT JOIN dbo.MetricMetadata m ON unpvt.MetricName = m.MetricName;
+) AS unpvt;
 ';
 
--- Execute dynamic SQL
+-- Step 3: Execute
 EXEC sp_executesql @sql;
