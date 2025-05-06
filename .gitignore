@@ -1,29 +1,29 @@
-const filterOptions = useMemo(() => {
-  // helper to pull out, split, trim, and dedupe a given field across all BUs
-  const extractNames = field =>
-    Array.from(
-      new Set(
-        data.flatMap((sc) =>
-          sc.businessUnits
-            .map((bu) => bu[field] || '')       // guard against null/undefined
-            .flatMap((names) =>
-              names
-                .split(',')                     // split comma‑separated
-                .map((s) => s.trim())           // trim whitespace
-                .filter((s) => s.length > 0)    // drop empty
-            )
-        )
-      )
-    );
+DECLARE @columns NVARCHAR(MAX),
+        @sql NVARCHAR(MAX);
 
-  return {
-    subcategoryNames: Array.from(
-      new Set(data.map((sc) => sc.subcategoryName || '').filter(Boolean))
-    ),
-    bus: ['ABC', 'UIO', 'POA', 'SKA-C'],         // static list
-    buOwners: extractNames('businessUnitOwner'),
-    subcatCustodians: extractNames('auditorSubcatCustodian'),
-    inScopeOptions: ['Yes', 'No'],
-    profileTypes: ['Provider', 'Consumer', 'Both', 'Inheritor'],
-  };
-}, [data]);
+-- Build list of metric columns to unpivot
+SELECT @columns = STRING_AGG(QUOTENAME(name), ',')
+FROM sys.columns
+WHERE object_id = OBJECT_ID('dbo.AllApps')
+  AND name NOT IN ('AppId', 'ReportMonth');  -- exclude non-metrics
+
+-- Construct dynamic SQL
+SET @sql = '
+SELECT 
+    a.AppId,
+    a.ReportMonth,
+    unpvt.MetricName,
+    unpvt.MetricValue,
+    m.Status,
+    m.MetricTextColor,
+    m.MetricBackgroundColor
+FROM 
+    dbo.AllApps a
+UNPIVOT (
+    MetricValue FOR MetricName IN (' + @columns + ')
+) AS unpvt
+LEFT JOIN dbo.MetricMetadata m ON unpvt.MetricName = m.MetricName;
+';
+
+-- Execute dynamic SQL
+EXEC sp_executesql @sql;
