@@ -1,109 +1,24 @@
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            flex: 2,
-            justifyContent: 'center',
-          }}
-        >
-          <Button
-            component={Link}
-            to="/"
-            sx={{
-              fontWeight: 700,
-              textTransform: 'none',
-              color: 'text.primary',
-              px: 2,
-              fontSize: 16,
-              borderBottom: '2px solid transparent',
-              '&:hover': {
-                borderBottom: '2px solid',
-                borderColor: 'primary.main',
-                background: 'none',
-              },
-            }}
-          >
-            Home
-          </Button>
-          <Button
-            onClick={handleLookerMenu}
-            endIcon={<ArrowDropDownIcon />}
-            sx={{
-              fontWeight: 700,
-              textTransform: 'none',
-              color: 'text.primary',
-              px: 2,
-              fontSize: 16,
-              borderBottom: '2px solid transparent',
-              '&:hover': {
-                borderBottom: '2px solid',
-                borderColor: 'primary.main',
-                background: 'none',
-              },
-            }}
-          >
-            Looker Links
-          </Button>
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleLookerClose}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'left',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
-            PaperProps={{
-              sx: {
-                minWidth: 240,
-                boxShadow: 2,
-                mt: 1,
-              }
-            }}
-          >
-            <MenuItem
-              onClick={handleLookerClose}
-              component="a"
-              href="https://looker.link/1"
-              target="_blank"
-              rel="noopener"
-              sx={{
-                fontWeight: 500,
-                fontSize: 15,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                '&:hover': {
-                  backgroundColor: '#f5f5f5',
-                }
-              }}
-            >
-              <span>Link 1</span>
-              <LinkIcon fontSize="small" sx={{ ml: 2, color: 'primary.main' }} />
-            </MenuItem>
-            <MenuItem
-              onClick={handleLookerClose}
-              component="a"
-              href="https://looker.link/2"
-              target="_blank"
-              rel="noopener"
-              sx={{
-                fontWeight: 500,
-                fontSize: 15,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                '&:hover': {
-                  backgroundColor: '#f5f5f5',
-                }
-              }}
-            >
-              <span>Link 2</span>
-              <LinkIcon fontSize="small" sx={{ ml: 2, color: 'primary.main' }} />
-            </MenuItem>
-          </Menu>
-        </Box>
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+
+const Footer = () => (
+  <Box
+    component="footer"
+    sx={{
+      width: "100%",
+      py: 2,
+      px: 1,
+      mt: "auto",
+      backgroundColor: (theme) => theme.palette.grey[100],
+      borderTop: 1,
+      borderColor: "divider",
+      textAlign: "center"
+    }}
+  >
+    <Typography variant="body2" color="text.secondary">
+      &copy; {new Date().getFullYear()} Your Company. All rights reserved.
+    </Typography>
+  </Box>
+);
+
+export default Footer;
