@@ -1,50 +1,176 @@
--- Step 1: Define dynamic column list
-DECLARE @columns NVARCHAR(MAX);
-DECLARE @sql NVARCHAR(MAX);
+view: fact {
+  sql_table_name: dbo.Fact ;;
 
--- Build column list excluding fixed columns
-SELECT @columns = STRING_AGG(QUOTENAME(name), ',')
-FROM sys.columns
-WHERE object_id = OBJECT_ID('dbo.AllApps')
-  AND name NOT IN ('AppId', 'ReportMonth');
+  # --- Dimensions ---
 
--- Step 2: Build dynamic SQL
-SET @sql = '
-SELECT 
-    AppId,
-    ReportMonth,
-    MetricName,
-    MetricValue,
+  dimension: report_month {
+    type: date
+    sql: ${TABLE}.Report_Month ;;
+    group_label: "Time"
+  }
 
-    -- Derived Status
-    CASE 
-        WHEN MetricName = ''Availability'' AND MetricValue >= 99 THEN ''Good''
-        WHEN MetricName = ''Availability'' THEN ''Poor''
-        WHEN MetricName = ''Performance'' AND MetricValue >= 90 THEN ''Good''
-        WHEN MetricName = ''Performance'' THEN ''Average''
-        ELSE ''Unknown''
-    END AS Status,
+  dimension: l1_ref {
+    sql: ${TABLE}.L1_Ref ;;
+    group_label: "Lens"
+    description: "L1 reference key for lens drilldown"
+  }
 
-    -- Derived MetricTextColor
-    CASE 
-        WHEN MetricName = ''Availability'' THEN ''Green''
-        WHEN MetricName = ''Performance'' THEN ''Orange''
-        ELSE ''Black''
-    END AS MetricTextColor,
+  dimension: strategic_lens_l1 {
+    label: "Strategic Lens"
+    sql: ${TABLE}.Strategic_Lens_L1 ;;
+    group_label: "Lens"
+    description: "Name of the high-level strategic lens"
+  }
 
-    -- Derived MetricBackgroundColor
-    CASE 
-        WHEN MetricName = ''Availability'' THEN ''White''
-        WHEN MetricName = ''Performance'' THEN ''Gray''
-        ELSE ''Transparent''
-    END AS MetricBackgroundColor
+  dimension: key_objective_l1 {
+    label: "L1 Objective"
+    sql: ${TABLE}.Key_Objective_L1 ;;
+    description: "Main objective for this lens"
+  }
 
-FROM 
-    (SELECT AppId, ReportMonth, ' + @columns + ' FROM dbo.AllApps) AS src
-UNPIVOT (
-    MetricValue FOR MetricName IN (' + @columns + ')
-) AS unpvt;
-';
+  dimension: key_outcome_l1 {
+    label: "L1 Outcome"
+    sql: ${TABLE}.Key_Outcome_L1 ;;
+  }
 
--- Step 3: Execute
-EXEC sp_executesql @sql;
+  dimension: l3_ref {
+    label: "Metric Reference (L3)"
+    sql: ${TABLE}.L3_Ref ;;
+  }
+
+  dimension: performance_status {
+    label: "Performance Status"
+    type: string
+    sql: 
+      CASE
+        WHEN ${l1_score} >= 0.8 THEN 'On Target'
+        WHEN ${l1_score} >= 0.5 THEN 'At Risk'
+        WHEN ${l1_score} IS NULL THEN 'Not Scored'
+        ELSE 'Outside Target'
+      END ;;
+    description: "Categorical performance for the lens"
+  }
+
+  dimension: metric_performance_status {
+    label: "Metric Performance Status"
+    type: string
+    sql:
+      CASE
+        WHEN ${l3_score} >= 0.8 THEN 'On Target'
+        WHEN ${l3_score} >= 0.5 THEN 'At Risk'
+        WHEN ${l3_score} IS NULL THEN 'Not Scored'
+        ELSE 'Outside Target'
+      END ;;
+    description: "Performance bucket for each metric (L3)"
+  }
+
+  dimension: metric_name {
+    label: "Metric Name"
+    sql: ${TABLE}.Supporting_Metric ;;
+  }
+
+  # --- Measures ---
+
+  measure: total_active_metrics {
+    label: "Active Metrics (L3 Count)"
+    type: count_distinct
+    sql: ${l3_ref} ;;
+    description: "Number of unique metrics (L3) for the lens"
+  }
+
+  measure: metrics_on_target {
+    label: "Metrics On Target"
+    type: count_distinct
+    sql: CASE WHEN ${metric_performance_status} = 'On Target' THEN ${l3_ref} END ;;
+  }
+
+  measure: metrics_at_risk {
+    label: "Metrics At Risk"
+    type: count_distinct
+    sql: CASE WHEN ${metric_performance_status} = 'At Risk' THEN ${l3_ref} END ;;
+  }
+
+  measure: metrics_outside_target {
+    label: "Metrics Outside Target"
+    type: count_distinct
+    sql: CASE WHEN ${metric_performance_status} = 'Outside Target' THEN ${l3_ref} END ;;
+  }
+
+  measure: metrics_not_scored {
+    label: "Metrics Not Scored"
+    type: count_distinct
+    sql: CASE WHEN ${metric_performance_status} = 'Not Scored' THEN ${l3_ref} END ;;
+  }
+
+  measure: percent_data_available {
+    label: "% Data Available"
+    type: number
+    value_format_name: percent_2
+    sql: (1.0 * COUNT(DISTINCT CASE WHEN ${l3_score} IS NOT NULL THEN ${l3_ref} END)) / COUNT(DISTINCT ${l3_ref}) ;;
+    description: "Percentage of active metrics with available data"
+  }
+
+  measure: l1_score {
+    label: "L1 Lens Score"
+    type: average
+    sql: ${TABLE}.L1_Score ;;
+    description: "Average score for the lens (L1 level)"
+  }
+
+  measure: l3_score {
+    label: "L3 Metric Score"
+    type: average
+    sql: ${TABLE}.L3_Score ;;
+    description: "Average score for metric (L3)"
+  }
+
+  measure: l3_weighted_score {
+    label: "L3 Weighted Score"
+    type: average
+    sql: ${TABLE}.L3_Weighted_score ;;
+    description: "Weighted score for metric (L3)"
+  }
+
+  # --- Trends / Time Series ---
+
+  measure: monthly_l1_score {
+    label: "Monthly L1 Lens Score"
+    type: average
+    sql: ${TABLE}.L1_Score ;;
+    group_by: report_month
+  }
+
+  # --- Metric Performance Breakdown (for stacked bars) ---
+
+  measure: metrics_on_target_count {
+    type: count
+    filters: [metric_performance_status: "On Target"]
+  }
+  measure: metrics_at_risk_count {
+    type: count
+    filters: [metric_performance_status: "At Risk"]
+  }
+  measure: metrics_outside_target_count {
+    type: count
+    filters: [metric_performance_status: "Outside Target"]
+  }
+  measure: metrics_not_scored_count {
+    type: count
+    filters: [metric_performance_status: "Not Scored"]
+  }
+
+  # --- Drilldown Link to Detail Dashboard ---
+
+  dimension: lens_detail_url {
+    label: "Lens Detail Link"
+    html:
+      "<a href='/dashboards/lens_detail?LensID=${l1_ref}' target='_blank'>Go to Detail</a>" ;;
+    description: "Click to drill to lens detail page"
+    group_label: "Drilldowns"
+  }
+
+  # --- Tooltips (for Description Fields in Looker) ---
+  # Use the 'description' property on each field for hover pop-ups.
+  # For more advanced tooltips, use Looker custom visualizations.
+
+}
