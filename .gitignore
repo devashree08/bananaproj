@@ -1,116 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import AppBar from '@mui/material/AppBar';
-import Box from '@mui/material/Box';
-import Toolbar from '@mui/material/Toolbar';
-import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import Button from '@mui/material/Button';
-import Avatar from '@mui/material/Avatar';
-import { Link } from 'react-router-dom';
-import MenuIcon from '@mui/icons-material/Menu';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import Logo from '../assets/images/logo.svg';
-import userPro from '../assets/images/my-account.svg';
-import axios from 'axios';
-import { config } from '../Config/URLs';
-
-const Header = () => {
-  const [name, setName] = useState({ first: '', last: '' });
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [navMenuAnchor, setNavMenuAnchor] = useState(null);
-
   useEffect(() => {
-    axios.get(config.url.API_URL + "GetResponseHeader")
-      .then((r) => setName(r.data))
-      .catch(() => setName({ first: 'User', last: '' }));
+    axios
+      .get(config.url.API_URL + "GetResponseHeader")
+      .then((r) => {
+        const { first, last } = r.data;
+        setName({
+          first: first || "NULL",
+          last: last || "NULL"
+        });
+      })
+      .catch(() => setName({ first: "NULL", last: "NULL" }));
   }, []);
-
-  // Dropdown for Looker Links
-  const handleLookerMenu = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-  const handleLookerClose = () => {
-    setAnchorEl(null);
-  };
-
-  // Responsive nav menu for mobile (optional)
-  const handleNavMenu = (event) => {
-    setNavMenuAnchor(event.currentTarget);
-  };
-  const handleNavMenuClose = () => {
-    setNavMenuAnchor(null);
-  };
-
-  return (
-    <AppBar position="static" color="primary" elevation={2}>
-      <Toolbar>
-        {/* Logo and Title */}
-        <Box component={Link} to="/" sx={{ display: "flex", alignItems: "center", textDecoration: "none", color: "inherit", flexGrow: 1 }}>
-          <img src={Logo} alt="Logo" style={{ width: 36, height: 36, marginRight: 12 }} />
-          <Typography variant="h6" sx={{ fontWeight: "bold", letterSpacing: 1 }}>
-            Web Portal Name Here
-          </Typography>
-        </Box>
-        {/* Nav Buttons */}
-        <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: "center" }}>
-          <Button color="inherit" component={Link} to="/">Home</Button>
-          <Button
-            color="inherit"
-            endIcon={<ArrowDropDownIcon />}
-            onClick={handleLookerMenu}
-          >
-            Looker Links
-          </Button>
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleLookerClose}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'left',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
-          >
-            <MenuItem onClick={handleLookerClose} component="a" href="https://looker.link/1" target="_blank" rel="noopener">Link 1</MenuItem>
-            <MenuItem onClick={handleLookerClose} component="a" href="https://looker.link/2" target="_blank" rel="noopener">Link 2</MenuItem>
-          </Menu>
-        </Box>
-        {/* Mobile Hamburger Menu (optional, can be omitted if not needed) */}
-        <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
-          <IconButton size="large" color="inherit" onClick={handleNavMenu}>
-            <MenuIcon />
-          </IconButton>
-          <Menu
-            anchorEl={navMenuAnchor}
-            open={Boolean(navMenuAnchor)}
-            onClose={handleNavMenuClose}
-          >
-            <MenuItem onClick={handleNavMenuClose} component={Link} to="/">Home</MenuItem>
-            <MenuItem onClick={handleLookerMenu}>Looker Links</MenuItem>
-            {/* Show Looker Links as submenu for mobile */}
-            {Boolean(anchorEl) && (
-              <>
-                <MenuItem onClick={handleLookerClose} component="a" href="https://looker.link/1" target="_blank" rel="noopener">Link 1</MenuItem>
-                <MenuItem onClick={handleLookerClose} component="a" href="https://looker.link/2" target="_blank" rel="noopener">Link 2</MenuItem>
-              </>
-            )}
-          </Menu>
-        </Box>
-        {/* User Info */}
-        <Box sx={{ display: "flex", alignItems: "center", ml: 2 }}>
-          <Avatar alt="User" src={userPro} sx={{ width: 32, height: 32, mr: 1 }} />
-          <Typography variant="body2" sx={{ color: "#fff" }}>
-            {name.first} {name.last}
-          </Typography>
-        </Box>
-      </Toolbar>
-    </AppBar>
-  );
-};
-
-export default Header;
