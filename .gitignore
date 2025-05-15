@@ -1,11 +1,8 @@
-dimension: lens_icon {
-  label: "Lens Icon"
   html:
     CASE
-      WHEN ${strategic_lens_l1} = 'Risk Management' THEN '<img src="https://yourcdn.com/icons/shield.png" alt="Risk" style="width:24px;height:24px;">'
-      WHEN ${strategic_lens_l1} = 'Cyber Security' THEN '<img src="https://yourcdn.com/icons/lock.png" alt="Cyber" style="width:24px;height:24px;">'
-      WHEN ${strategic_lens_l1} = 'People & Culture' THEN '<img src="https://yourcdn.com/icons/people.png" alt="People" style="width:24px;height:24px;">'
-      ELSE '<img src="https://yourcdn.com/icons/default.png" alt="Other" style="width:24px;height:24px;">'
+      WHEN ${strategic_lens_l1} = 'Risk Management' THEN '<img src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/shield-check.svg" alt="Risk" style="width:24px;height:24px;">'
+      WHEN ${strategic_lens_l1} = 'Cyber Security' THEN '<img src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/lock.svg" alt="Cyber" style="width:24px;height:24px;">'
+      WHEN ${strategic_lens_l1} = 'People & Culture' THEN '<img src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/people.svg" alt="People" style="width:24px;height:24px;">'
+      WHEN ${strategic_lens_l1} = 'Cyber Defense' THEN '<img src="https://api.iconify.design/material-symbols/security.svg" alt="Cyber Defense" style="width:24px;height:24px;">'
+      ELSE '<img src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/grid.svg" alt="Other" style="width:24px;height:24px;">'
     END ;;
-  description: "Lens category icon. Icons should be hosted on a web-accessible server/CDN."
-}
