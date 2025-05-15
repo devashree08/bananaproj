@@ -1,42 +1,187 @@
-import React from 'react';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import useTheme from '@mui/material/styles/useTheme';
-import Logo from '../assets/images/logo.svg';
+import React, { useState } from "react";
+import {
+  Box,
+  Grid,
+  TextField,
+  MenuItem,
+  Button,
+  Typography,
+  Snackbar,
+  Alert,
+  Paper
+} from "@mui/material";
 
-const Footer = () => {
-  const theme = useTheme();
+// Mock data
+const quarters = ["Q1", "Q2", "Q3", "Q4"];
+const vendors = [
+  { name: "Nokia", pcm: "PCM1001" },
+  { name: "Apple", pcm: "PCM1002" },
+  { name: "Samsung", pcm: "PCM1003" },
+  { name: "Motorolla", pcm: "PCM1004" }
+];
+const riskAreas = ["Mobile App", "Hardware", "SIM Card"];
+
+const ReportForm = () => {
+  const [form, setForm] = useState({
+    quarter: "",
+    vendor: "",
+    pcm: "",
+    area: "",
+    insight: "",
+    mitigation: ""
+  });
+
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  // Update form state
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    let updatedForm = { ...form, [name]: value };
+
+    // Auto-populate PCM ID
+    if (name === "vendor") {
+      const found = vendors.find(v => v.name === value);
+      updatedForm.pcm = found ? found.pcm : "";
+    }
+    setForm(updatedForm);
+  };
+
+  // Handle Save (mocked)
+  const handleSave = (e) => {
+    e.preventDefault();
+    // Basic validation
+    if (!form.quarter || !form.vendor || !form.area || !form.insight || !form.mitigation) {
+      setSnackbar({ open: true, message: "Please fill all fields.", severity: "error" });
+      return;
+    }
+    // Mock API call
+    setTimeout(() => {
+      setSnackbar({ open: true, message: "Report saved successfully!", severity: "success" });
+      // Clear the form or keep as-is
+      // setForm({ quarter: "", vendor: "", pcm: "", area: "", insight: "", mitigation: "" });
+    }, 700);
+  };
 
   return (
-    <Box
-      component="footer"
+    <Paper
+      elevation={3}
       sx={{
-        width: '100%',
-        py: 2,
-        px: { xs: 2, sm: 8 },
-        backgroundColor: theme.palette.grey[900],
-        color: theme.palette.grey[100],
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'fixed',
-        left: 0,
-        bottom: 0,
-        zIndex: theme.zIndex.appBar,
-        minHeight: 60
+        p: { xs: 2, sm: 4 },
+        maxWidth: 600,
+        mx: "auto",
+        my: 6,
+        borderRadius: 3
       }}
     >
-      {/* Logo left */}
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        <img src={Logo} alt="Company Logo" style={{ height: 36 }} />
-      </Box>
-
-      {/* Copyright right */}
-      <Typography variant="body2" sx={{ fontWeight: 500, letterSpacing: 0.2 }}>
-        &copy; {new Date().getFullYear()} Your Company. All rights reserved.
+      <Typography variant="h5" fontWeight={700} gutterBottom>
+        New Risk Report
       </Typography>
-    </Box>
+      <Box component="form" autoComplete="off" onSubmit={handleSave} sx={{ mt: 2 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              select
+              label="Report Quarter"
+              name="quarter"
+              value={form.quarter}
+              onChange={handleChange}
+              fullWidth
+              required
+            >
+              {quarters.map(q => (
+                <MenuItem key={q} value={q}>{q}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              select
+              label="Vendor"
+              name="vendor"
+              value={form.vendor}
+              onChange={handleChange}
+              fullWidth
+              required
+            >
+              {vendors.map(v => (
+                <MenuItem key={v.name} value={v.name}>{v.name}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              label="PCM ID"
+              name="pcm"
+              value={form.pcm}
+              InputProps={{ readOnly: true }}
+              fullWidth
+              required
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              select
+              label="Risk Area"
+              name="area"
+              value={form.area}
+              onChange={handleChange}
+              fullWidth
+              required
+            >
+              {riskAreas.map(area => (
+                <MenuItem key={area} value={area}>{area}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              label="Risk Insight"
+              name="insight"
+              value={form.insight}
+              onChange={handleChange}
+              multiline
+              minRows={5}
+              fullWidth
+              required
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              label="Risk Mitigation"
+              name="mitigation"
+              value={form.mitigation}
+              onChange={handleChange}
+              multiline
+              minRows={5}
+              fullWidth
+              required
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              sx={{ px: 6, py: 1.5, fontWeight: 700, mt: 1 }}
+            >
+              Save Report
+            </Button>
+          </Grid>
+        </Grid>
+      </Box>
+      {/* Snackbar Toaster */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2800}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} variant="filled" sx={{ width: "100%" }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Paper>
   );
 };
 
-export default Footer;
+export default ReportForm;
