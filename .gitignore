@@ -1,6 +1,6 @@
 <Button
-            onClick={handleLookerMenu}
-            endIcon={<ArrowDropDownIcon />}
+            component={Link}
+            to="/"
             sx={{
               fontWeight: 700,
               textTransform: 'none',
@@ -15,3 +15,5 @@
               },
             }}
           >
+            Home
+          </Button>
