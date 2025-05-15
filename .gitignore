@@ -49,15 +49,12 @@ const ReportForm = () => {
   // Handle Save (mocked)
   const handleSave = (e) => {
     e.preventDefault();
-    // Basic validation
     if (!form.quarter || !form.vendor || !form.area || !form.insight || !form.mitigation) {
       setSnackbar({ open: true, message: "Please fill all fields.", severity: "error" });
       return;
     }
-    // Mock API call
     setTimeout(() => {
       setSnackbar({ open: true, message: "Report saved successfully!", severity: "success" });
-      // Clear the form or keep as-is
       // setForm({ quarter: "", vendor: "", pcm: "", area: "", insight: "", mitigation: "" });
     }, 700);
   };
@@ -67,17 +64,20 @@ const ReportForm = () => {
       elevation={3}
       sx={{
         p: { xs: 2, sm: 4 },
-        maxWidth: 600,
+        width: "90%",
+        maxWidth: 700,
         mx: "auto",
         my: 6,
-        borderRadius: 3
+        borderRadius: 3,
+        bgcolor: "#fafcff"
       }}
     >
       <Typography variant="h5" fontWeight={700} gutterBottom>
         New Risk Report
       </Typography>
       <Box component="form" autoComplete="off" onSubmit={handleSave} sx={{ mt: 2 }}>
-        <Grid container spacing={2}>
+        {/* Filter Row */}
+        <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={4}>
             <TextField
               select
@@ -118,6 +118,10 @@ const ReportForm = () => {
               required
             />
           </Grid>
+        </Grid>
+
+        {/* Risk Area - its own row */}
+        <Grid container spacing={2} sx={{ mt: 2 }}>
           <Grid item xs={12}>
             <TextField
               select
@@ -133,42 +137,55 @@ const ReportForm = () => {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12}>
-            <TextField
-              label="Risk Insight"
-              name="insight"
-              value={form.insight}
-              onChange={handleChange}
-              multiline
-              minRows={5}
-              fullWidth
-              required
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              label="Risk Mitigation"
-              name="mitigation"
-              value={form.mitigation}
-              onChange={handleChange}
-              multiline
-              minRows={5}
-              fullWidth
-              required
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              sx={{ px: 6, py: 1.5, fontWeight: 700, mt: 1 }}
-            >
-              Save Report
-            </Button>
-          </Grid>
         </Grid>
+
+        {/* Risk Insight Row */}
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+            Risk Insight
+          </Typography>
+          <TextField
+            name="insight"
+            value={form.insight}
+            onChange={handleChange}
+            multiline
+            minRows={5}
+            fullWidth
+            required
+            placeholder="Enter key risk insights here..."
+          />
+        </Box>
+
+        {/* Risk Mitigation Row */}
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+            Risk Mitigation
+          </Typography>
+          <TextField
+            name="mitigation"
+            value={form.mitigation}
+            onChange={handleChange}
+            multiline
+            minRows={5}
+            fullWidth
+            required
+            placeholder="Enter risk mitigation details here..."
+          />
+        </Box>
+
+        {/* Save Button Row */}
+        <Box sx={{ mt: 4, textAlign: "center" }}>
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            sx={{ px: 6, py: 1.5, fontWeight: 700 }}
+          >
+            Save Report
+          </Button>
+        </Box>
       </Box>
+
       {/* Snackbar Toaster */}
       <Snackbar
         open={snackbar.open}
@@ -176,7 +193,12 @@ const ReportForm = () => {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} variant="filled" sx={{ width: "100%" }}>
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>
