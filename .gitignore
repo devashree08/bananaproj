@@ -1,24 +1,42 @@
+import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import useTheme from '@mui/material/styles/useTheme';
+import Logo from '../assets/images/logo.svg';
 
-const Footer = () => (
-  <Box
-    component="footer"
-    sx={{
-      width: "100%",
-      py: 2,
-      px: 1,
-      mt: "auto",
-      backgroundColor: (theme) => theme.palette.grey[100],
-      borderTop: 1,
-      borderColor: "divider",
-      textAlign: "center"
-    }}
-  >
-    <Typography variant="body2" color="text.secondary">
-      &copy; {new Date().getFullYear()} Your Company. All rights reserved.
-    </Typography>
-  </Box>
-);
+const Footer = () => {
+  const theme = useTheme();
+
+  return (
+    <Box
+      component="footer"
+      sx={{
+        width: '100%',
+        py: 2,
+        px: { xs: 2, sm: 8 },
+        backgroundColor: theme.palette.grey[900],
+        color: theme.palette.grey[100],
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'fixed',
+        left: 0,
+        bottom: 0,
+        zIndex: theme.zIndex.appBar,
+        minHeight: 60
+      }}
+    >
+      {/* Logo left */}
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <img src={Logo} alt="Company Logo" style={{ height: 36 }} />
+      </Box>
+
+      {/* Copyright right */}
+      <Typography variant="body2" sx={{ fontWeight: 500, letterSpacing: 0.2 }}>
+        &copy; {new Date().getFullYear()} Your Company. All rights reserved.
+      </Typography>
+    </Box>
+  );
+};
 
 export default Footer;
