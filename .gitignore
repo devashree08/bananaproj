@@ -1,4 +1,13 @@
-<Button
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            flex: 2,
+            justifyContent: 'center',
+          }}
+        >
+          <Button
             component={Link}
             to="/"
             sx={{
@@ -17,3 +26,81 @@
           >
             Home
           </Button>
+          <Button
+            onClick={handleLookerMenu}
+            endIcon={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <ArrowDropDownIcon />
+                <LinkIcon sx={{ fontSize: 18, ml: 0.5, color: "primary.main" }} />
+              </Box>
+            }
+            sx={{
+              fontWeight: 700,
+              textTransform: 'none',
+              color: 'text.primary',
+              px: 2,
+              fontSize: 16,
+              borderBottom: '2px solid transparent',
+              '&:hover': {
+                borderBottom: '2px solid',
+                borderColor: 'primary.main',
+                background: 'none',
+              },
+            }}
+          >
+            Looker Links
+          </Button>
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleLookerClose}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'left',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'left',
+            }}
+            PaperProps={{
+              sx: {
+                minWidth: 240,
+                boxShadow: 2,
+                mt: 1,
+              }
+            }}
+          >
+            <MenuItem
+              onClick={handleLookerClose}
+              component="a"
+              href="https://looker.link/1"
+              target="_blank"
+              rel="noopener"
+              sx={{
+                fontWeight: 500,
+                fontSize: 15,
+                '&:hover': {
+                  backgroundColor: '#f5f5f5',
+                }
+              }}
+            >
+              Link 1
+            </MenuItem>
+            <MenuItem
+              onClick={handleLookerClose}
+              component="a"
+              href="https://looker.link/2"
+              target="_blank"
+              rel="noopener"
+              sx={{
+                fontWeight: 500,
+                fontSize: 15,
+                '&:hover': {
+                  backgroundColor: '#f5f5f5',
+                }
+              }}
+            >
+              Link 2
+            </MenuItem>
+          </Menu>
+        </Box>
