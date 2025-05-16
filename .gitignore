@@ -75,14 +75,9 @@ const ReportForm = () => {
         New Risk Report
       </Typography>
       <Box component="form" autoComplete="off" onSubmit={handleSave} sx={{ mt: 2 }}>
-        {/* Filter Row */}
-        <Grid
-          container
-          spacing={3}  // bigger spacing between filter fields
-          alignItems="center"
-          sx={{ mb: 2 }}
-        >
-          <Grid item xs={12} md={4}>
+        {/* Filter Row: All 4 filters in a single row */}
+        <Grid container spacing={3} alignItems="center" sx={{ mb: 2 }}>
+          <Grid item xs={12} md={3}>
             <TextField
               select
               label="Report Quarter"
@@ -98,7 +93,7 @@ const ReportForm = () => {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <TextField
               select
               label="Vendor"
@@ -114,7 +109,7 @@ const ReportForm = () => {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <TextField
               label="PCM ID"
               name="pcm"
@@ -125,11 +120,7 @@ const ReportForm = () => {
               size="medium"
             />
           </Grid>
-        </Grid>
-
-        {/* Risk Area - its own row */}
-        <Grid container spacing={0} sx={{ mb: 2 }}>
-          <Grid item xs={12} md={8}>
+          <Grid item xs={12} md={3}>
             <TextField
               select
               label="Risk Area"
