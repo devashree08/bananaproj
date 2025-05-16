@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   Box,
-  Grid,
   TextField,
   MenuItem,
   Button,
@@ -55,7 +54,6 @@ const ReportForm = () => {
     }
     setTimeout(() => {
       setSnackbar({ open: true, message: "Report saved successfully!", severity: "success" });
-      // setForm({ quarter: "", vendor: "", pcm: "", area: "", insight: "", mitigation: "" });
     }, 700);
   };
 
@@ -75,68 +73,75 @@ const ReportForm = () => {
         New Risk Report
       </Typography>
       <Box component="form" autoComplete="off" onSubmit={handleSave} sx={{ mt: 2 }}>
-        {/* Filter Row: All 4 filters in a single row */}
-        <Grid container spacing={3} alignItems="center" sx={{ mb: 2 }}>
-          <Grid item xs={12} md={3}>
-            <TextField
-              select
-              label="Report Quarter"
-              name="quarter"
-              value={form.quarter}
-              onChange={handleChange}
-              fullWidth
-              required
-              size="medium"
-            >
-              {quarters.map(q => (
-                <MenuItem key={q} value={q}>{q}</MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <TextField
-              select
-              label="Vendor"
-              name="vendor"
-              value={form.vendor}
-              onChange={handleChange}
-              fullWidth
-              required
-              size="medium"
-            >
-              {vendors.map(v => (
-                <MenuItem key={v.name} value={v.name}>{v.name}</MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <TextField
-              label="PCM ID"
-              name="pcm"
-              value={form.pcm}
-              InputProps={{ readOnly: true }}
-              fullWidth
-              required
-              size="medium"
-            />
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <TextField
-              select
-              label="Risk Area"
-              name="area"
-              value={form.area}
-              onChange={handleChange}
-              fullWidth
-              required
-              size="medium"
-            >
-              {riskAreas.map(area => (
-                <MenuItem key={area} value={area}>{area}</MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-        </Grid>
+        {/* Filter Row: Flexbox, all fields are always wide and evenly spaced */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 3,
+            mb: 2,
+            flexWrap: "wrap"
+          }}
+        >
+          <TextField
+            select
+            label="Report Quarter"
+            name="quarter"
+            value={form.quarter}
+            onChange={handleChange}
+            required
+            sx={{
+              flex: 1,
+              minWidth: { xs: 180, sm: 200, md: 220 }
+            }}
+          >
+            {quarters.map(q => (
+              <MenuItem key={q} value={q}>{q}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Vendor"
+            name="vendor"
+            value={form.vendor}
+            onChange={handleChange}
+            required
+            sx={{
+              flex: 1,
+              minWidth: { xs: 180, sm: 200, md: 220 }
+            }}
+          >
+            {vendors.map(v => (
+              <MenuItem key={v.name} value={v.name}>{v.name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="PCM ID"
+            name="pcm"
+            value={form.pcm}
+            InputProps={{ readOnly: true }}
+            required
+            sx={{
+              flex: 1,
+              minWidth: { xs: 120, sm: 150, md: 180 }
+            }}
+          />
+          <TextField
+            select
+            label="Risk Area"
+            name="area"
+            value={form.area}
+            onChange={handleChange}
+            required
+            sx={{
+              flex: 1,
+              minWidth: { xs: 180, sm: 200, md: 220 }
+            }}
+          >
+            {riskAreas.map(area => (
+              <MenuItem key={area} value={area}>{area}</MenuItem>
+            ))}
+          </TextField>
+        </Box>
 
         {/* Risk Insight Row */}
         <Box sx={{ mt: 4 }}>
