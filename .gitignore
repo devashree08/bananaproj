@@ -7,54 +7,164 @@ import {
   Typography,
   Snackbar,
   Alert,
-  Paper
+  Paper,
+  Grid,
+  Autocomplete,
+  IconButton
 } from "@mui/material";
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 
-// Mock data
-const quarters = ["Q1", "Q2", "Q3", "Q4"];
+// Example data for vendors and PCM IDs
 const vendors = [
-  { name: "Nokia", pcm: "PCM1001" },
-  { name: "Apple", pcm: "PCM1002" },
-  { name: "Samsung", pcm: "PCM1003" },
-  { name: "Motorolla", pcm: "PCM1004" }
+  { name: "Nokia", pcmIds: ["PCM1001", "PCM1005"] },
+  { name: "Apple", pcmIds: ["PCM1002"] },
+  { name: "Samsung", pcmIds: ["PCM1003", "PCM1006"] },
+  { name: "Motorolla", pcmIds: ["PCM1004"] }
 ];
-const riskAreas = ["Mobile App", "Hardware", "SIM Card"];
+
+// Example "existing" risk areas per Vendor+PCM, in real world this would come from an API
+const existingRiskAreas = {
+  "Nokia_PCM1001": ["Mobile App", "SIM Card"],
+  "Apple_PCM1002": ["Hardware"],
+  // etc...
+};
+
+const quarters = ["Q1", "Q2", "Q3", "Q4"];
+
+const emptyMitigation = () => ({
+  A: "",
+  B: "",
+  C: "",
+  D: "",
+  E: ""
+});
 
 const ReportForm = () => {
+  // Main form state
   const [form, setForm] = useState({
     quarter: "",
     vendor: "",
     pcm: "",
-    area: "",
-    insight: "",
-    mitigation: ""
+    riskArea: "",
+    riskInsight: "",
+    mitigations: emptyMitigation()
   });
-
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
-  // Update form state
+  // For temporary (not yet saved) risk areas for this PCM ID
+  const [riskAreasList, setRiskAreasList] = useState([]);
+
+  // For editing a risk area in the temp list
+  const [editIndex, setEditIndex] = useState(null);
+
+  // List of PCM IDs for the selected vendor
+  const currentPcmIds = vendors.find(v => v.name === form.vendor)?.pcmIds || [];
+
+  // List of existing risk areas for this Vendor+PCM
+  const existingKey = form.vendor && form.pcm ? `${form.vendor}_${form.pcm}` : null;
+  const currentExistingRiskAreas = existingRiskAreas[existingKey] || [];
+
+  // Handle any field change
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let updatedForm = { ...form, [name]: value };
+    setForm(f => ({ ...f, [name]: value }));
 
-    // Auto-populate PCM ID
+    // Reset PCM if vendor changes
     if (name === "vendor") {
-      const found = vendors.find(v => v.name === value);
-      updatedForm.pcm = found ? found.pcm : "";
+      setForm(f => ({
+        ...f,
+        pcm: "",
+        riskArea: "",
+        riskInsight: "",
+        mitigations: emptyMitigation()
+      }));
     }
-    setForm(updatedForm);
+    // If PCM changes, reset risk area/insight/mitigations
+    if (name === "pcm") {
+      setForm(f => ({
+        ...f,
+        riskArea: "",
+        riskInsight: "",
+        mitigations: emptyMitigation()
+      }));
+    }
   };
 
-  // Handle Save (mocked)
-  const handleSave = (e) => {
-    e.preventDefault();
-    if (!form.quarter || !form.vendor || !form.area || !form.insight || !form.mitigation) {
-      setSnackbar({ open: true, message: "Please fill all fields.", severity: "error" });
+  // For risk area selection/freeform
+  const handleRiskAreaChange = (event, value) => {
+    setForm(f => ({
+      ...f,
+      riskArea: value || ""
+    }));
+  };
+
+  // For risk mitigation fields (A-E)
+  const handleMitigationChange = (e) => {
+    const { name, value } = e.target;
+    setForm(f => ({
+      ...f,
+      mitigations: { ...f.mitigations, [name]: value }
+    }));
+  };
+
+  // Add or update a risk area to the temp list
+  const handleAddRiskArea = () => {
+    if (!form.riskArea || !form.riskInsight) {
+      setSnackbar({ open: true, message: "Please enter Risk Area and Risk Insight.", severity: "error" });
       return;
     }
+    const entry = {
+      riskArea: form.riskArea,
+      riskInsight: form.riskInsight,
+      mitigations: { ...form.mitigations }
+    };
+    let updatedList = [...riskAreasList];
+    if (editIndex !== null) {
+      updatedList[editIndex] = entry;
+      setEditIndex(null);
+    } else {
+      updatedList.push(entry);
+    }
+    setRiskAreasList(updatedList);
+    // Clear form for next entry
+    setForm(f => ({
+      ...f,
+      riskArea: "",
+      riskInsight: "",
+      mitigations: emptyMitigation()
+    }));
+  };
+
+  // Edit a risk area from temp list
+  const handleEditRiskArea = (idx) => {
+    const entry = riskAreasList[idx];
+    setForm(f => ({
+      ...f,
+      riskArea: entry.riskArea,
+      riskInsight: entry.riskInsight,
+      mitigations: { ...entry.mitigations }
+    }));
+    setEditIndex(idx);
+  };
+
+  // Delete a risk area from temp list
+  const handleDeleteRiskArea = (idx) => {
+    setRiskAreasList(riskAreasList.filter((_, i) => i !== idx));
+    if (editIndex === idx) setEditIndex(null);
+  };
+
+  // "Final" save to database (mocked)
+  const handleFinalSave = () => {
+    if (!form.quarter || !form.vendor || !form.pcm || riskAreasList.length === 0) {
+      setSnackbar({ open: true, message: "Please select all filters and add at least one Risk Area.", severity: "error" });
+      return;
+    }
+    // Here you would POST the whole object to your API
     setTimeout(() => {
-      setSnackbar({ open: true, message: "Report saved successfully!", severity: "success" });
-    }, 700);
+      setSnackbar({ open: true, message: "All risk areas saved to database!", severity: "success" });
+      setRiskAreasList([]);
+    }, 900);
   };
 
   return (
@@ -72,122 +182,165 @@ const ReportForm = () => {
       <Typography variant="h5" fontWeight={700} gutterBottom>
         New Risk Report
       </Typography>
-      <Box component="form" autoComplete="off" onSubmit={handleSave} sx={{ mt: 2 }}>
-        {/* Filter Row: Flexbox, all fields are always wide and evenly spaced */}
-        <Box
-          sx={{
-            display: "flex",
-            gap: 3,
-            mb: 2,
-            flexWrap: "wrap"
-          }}
+      {/* Top filters */}
+      <Box sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap" }}>
+        <TextField
+          select
+          label="Report Quarter"
+          name="quarter"
+          value={form.quarter}
+          onChange={handleChange}
+          required
+          sx={{ flex: 1, minWidth: 180 }}
         >
-          <TextField
-            select
-            label="Report Quarter"
-            name="quarter"
-            value={form.quarter}
-            onChange={handleChange}
-            required
-            sx={{
-              flex: 1,
-              minWidth: { xs: 180, sm: 200, md: 220 }
-            }}
-          >
-            {quarters.map(q => (
-              <MenuItem key={q} value={q}>{q}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Vendor"
-            name="vendor"
-            value={form.vendor}
-            onChange={handleChange}
-            required
-            sx={{
-              flex: 1,
-              minWidth: { xs: 180, sm: 200, md: 220 }
-            }}
-          >
-            {vendors.map(v => (
-              <MenuItem key={v.name} value={v.name}>{v.name}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label="PCM ID"
-            name="pcm"
-            value={form.pcm}
-            InputProps={{ readOnly: true }}
-            required
-            sx={{
-              flex: 1,
-              minWidth: { xs: 120, sm: 150, md: 180 }
-            }}
-          />
-          <TextField
-            select
-            label="Risk Area"
-            name="area"
-            value={form.area}
-            onChange={handleChange}
-            required
-            sx={{
-              flex: 1,
-              minWidth: { xs: 180, sm: 200, md: 220 }
-            }}
-          >
-            {riskAreas.map(area => (
-              <MenuItem key={area} value={area}>{area}</MenuItem>
-            ))}
-          </TextField>
-        </Box>
+          {quarters.map(q => (
+            <MenuItem key={q} value={q}>{q}</MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="Vendor"
+          name="vendor"
+          value={form.vendor}
+          onChange={handleChange}
+          required
+          sx={{ flex: 1, minWidth: 180 }}
+        >
+          {vendors.map(v => (
+            <MenuItem key={v.name} value={v.name}>{v.name}</MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="PCM ID"
+          name="pcm"
+          value={form.pcm}
+          onChange={handleChange}
+          required
+          sx={{ flex: 1, minWidth: 180 }}
+          disabled={!form.vendor}
+        >
+          {currentPcmIds.map(id => (
+            <MenuItem key={id} value={id}>{id}</MenuItem>
+          ))}
+        </TextField>
+        <Autocomplete
+          freeSolo
+          value={form.riskArea}
+          onChange={handleRiskAreaChange}
+          inputValue={form.riskArea}
+          onInputChange={(event, newValue) => setForm(f => ({ ...f, riskArea: newValue }))}
+          options={currentExistingRiskAreas}
+          sx={{ flex: 1, minWidth: 180 }}
+          renderInput={(params) =>
+            <TextField {...params} label="Risk Area" required />
+          }
+          disabled={!form.pcm}
+        />
+      </Box>
 
-        {/* Risk Insight Row */}
+      {/* If editing existing, maybe show a hint */}
+      {editIndex !== null && (
+        <Typography sx={{ color: 'primary.main', mb: 1, ml: 1 }}>
+          Editing Risk Area #{editIndex + 1}
+        </Typography>
+      )}
+
+      {/* Risk Insight */}
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+          Risk Insight
+        </Typography>
+        <TextField
+          name="riskInsight"
+          value={form.riskInsight}
+          onChange={handleChange}
+          multiline
+          minRows={5}
+          fullWidth
+          required
+          placeholder="Enter key risk insights here..."
+        />
+      </Box>
+
+      {/* Risk Mitigation Fields A-E */}
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+          Risk Mitigations (A–E)
+        </Typography>
+        <Grid container spacing={2}>
+          {["A", "B", "C", "D", "E"].map((key) => (
+            <Grid item xs={12} md={6} key={key}>
+              <TextField
+                label={`Risk Mitigation ${key}`}
+                name={key}
+                value={form.mitigations[key]}
+                onChange={handleMitigationChange}
+                multiline
+                minRows={2}
+                fullWidth
+                required={key === "A"} // make A required, rest optional (optional: up to you)
+                placeholder={`Mitigation ${key}`}
+              />
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+
+      {/* Add Risk Area Button */}
+      <Box sx={{ mt: 3, textAlign: "right" }}>
+        <Button
+          variant="outlined"
+          onClick={handleAddRiskArea}
+          sx={{ px: 4, fontWeight: 700 }}
+        >
+          {editIndex !== null ? "Update Risk Area" : "Add Risk Area"}
+        </Button>
+      </Box>
+
+      {/* List of Temp Risk Areas */}
+      {riskAreasList.length > 0 && (
         <Box sx={{ mt: 4 }}>
-          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-            Risk Insight
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            Risk Areas for this PCM ID
           </Typography>
-          <TextField
-            name="insight"
-            value={form.insight}
-            onChange={handleChange}
-            multiline
-            minRows={5}
-            fullWidth
-            required
-            placeholder="Enter key risk insights here..."
-          />
+          {riskAreasList.map((entry, idx) => (
+            <Paper key={idx} sx={{ p: 2, mb: 2, bgcolor: "#f1f6fc" }}>
+              <Grid container spacing={1} alignItems="center">
+                <Grid item xs={12} md={3}>
+                  <b>Risk Area:</b> {entry.riskArea}
+                </Grid>
+                <Grid item xs={12} md={5}>
+                  <b>Insight:</b> {entry.riskInsight}
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <b>Mitigations:</b>{" "}
+                  {["A", "B", "C", "D", "E"].map(key =>
+                    entry.mitigations[key] ? (
+                      <span key={key}><b>{key}:</b> {entry.mitigations[key]}{" "}</span>
+                    ) : null
+                  )}
+                </Grid>
+                <Grid item xs={12} md={1}>
+                  <IconButton onClick={() => handleEditRiskArea(idx)}><EditIcon /></IconButton>
+                  <IconButton onClick={() => handleDeleteRiskArea(idx)}><DeleteIcon /></IconButton>
+                </Grid>
+              </Grid>
+            </Paper>
+          ))}
         </Box>
+      )}
 
-        {/* Risk Mitigation Row */}
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-            Risk Mitigation
-          </Typography>
-          <TextField
-            name="mitigation"
-            value={form.mitigation}
-            onChange={handleChange}
-            multiline
-            minRows={5}
-            fullWidth
-            required
-            placeholder="Enter risk mitigation details here..."
-          />
-        </Box>
-
-        {/* Save Button Row */}
-        <Box sx={{ mt: 4, textAlign: "center" }}>
-          <Button
-            type="submit"
-            variant="contained"
-            size="large"
-            sx={{ px: 6, py: 1.5, fontWeight: 700 }}
-          >
-            Save Report
-          </Button>
-        </Box>
+      {/* Final Save Button */}
+      <Box sx={{ mt: 4, textAlign: "center" }}>
+        <Button
+          variant="contained"
+          size="large"
+          sx={{ px: 6, py: 1.5, fontWeight: 700 }}
+          onClick={handleFinalSave}
+        >
+          Save All to Database
+        </Button>
       </Box>
 
       {/* Snackbar Toaster */}
