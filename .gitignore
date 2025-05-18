@@ -8,116 +8,105 @@ import {
   Snackbar,
   Alert,
   Paper,
-  Grid,
   Autocomplete,
-  IconButton
+  Stack,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  IconButton,
 } from "@mui/material";
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 
-// Example data for vendors and PCM IDs
+// Mock Data
 const vendors = [
   { name: "Nokia", pcmIds: ["PCM1001", "PCM1005"] },
   { name: "Apple", pcmIds: ["PCM1002"] },
   { name: "Samsung", pcmIds: ["PCM1003", "PCM1006"] },
-  { name: "Motorolla", pcmIds: ["PCM1004"] }
+  { name: "Motorolla", pcmIds: ["PCM1004"] },
 ];
-
-// Example "existing" risk areas per Vendor+PCM, in real world this would come from an API
 const existingRiskAreas = {
   "Nokia_PCM1001": ["Mobile App", "SIM Card"],
   "Apple_PCM1002": ["Hardware"],
-  // etc...
 };
-
 const quarters = ["Q1", "Q2", "Q3", "Q4"];
-
-const emptyMitigation = () => ({
-  A: "",
-  B: "",
-  C: "",
-  D: "",
-  E: ""
-});
+const emptyMitigation = () => ({ A: "", B: "", C: "", D: "", E: "" });
 
 const ReportForm = () => {
-  // Main form state
   const [form, setForm] = useState({
     quarter: "",
     vendor: "",
     pcm: "",
     riskArea: "",
     riskInsight: "",
-    mitigations: emptyMitigation()
+    mitigations: emptyMitigation(),
   });
-  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
-
-  // For temporary (not yet saved) risk areas for this PCM ID
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
   const [riskAreasList, setRiskAreasList] = useState([]);
-
-  // For editing a risk area in the temp list
   const [editIndex, setEditIndex] = useState(null);
 
-  // List of PCM IDs for the selected vendor
-  const currentPcmIds = vendors.find(v => v.name === form.vendor)?.pcmIds || [];
-
-  // List of existing risk areas for this Vendor+PCM
+  const currentPcmIds =
+    vendors.find((v) => v.name === form.vendor)?.pcmIds || [];
   const existingKey = form.vendor && form.pcm ? `${form.vendor}_${form.pcm}` : null;
   const currentExistingRiskAreas = existingRiskAreas[existingKey] || [];
 
-  // Handle any field change
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    setForm((f) => ({ ...f, [name]: value }));
 
-    // Reset PCM if vendor changes
     if (name === "vendor") {
-      setForm(f => ({
+      setForm((f) => ({
         ...f,
         pcm: "",
         riskArea: "",
         riskInsight: "",
-        mitigations: emptyMitigation()
+        mitigations: emptyMitigation(),
       }));
     }
-    // If PCM changes, reset risk area/insight/mitigations
     if (name === "pcm") {
-      setForm(f => ({
+      setForm((f) => ({
         ...f,
         riskArea: "",
         riskInsight: "",
-        mitigations: emptyMitigation()
+        mitigations: emptyMitigation(),
       }));
     }
   };
 
-  // For risk area selection/freeform
   const handleRiskAreaChange = (event, value) => {
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
-      riskArea: value || ""
+      riskArea: value || "",
     }));
   };
 
-  // For risk mitigation fields (A-E)
   const handleMitigationChange = (e) => {
     const { name, value } = e.target;
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
-      mitigations: { ...f.mitigations, [name]: value }
+      mitigations: { ...f.mitigations, [name]: value },
     }));
   };
 
-  // Add or update a risk area to the temp list
   const handleAddRiskArea = () => {
     if (!form.riskArea || !form.riskInsight) {
-      setSnackbar({ open: true, message: "Please enter Risk Area and Risk Insight.", severity: "error" });
+      setSnackbar({
+        open: true,
+        message: "Please enter Risk Area and Risk Insight.",
+        severity: "error",
+      });
       return;
     }
     const entry = {
       riskArea: form.riskArea,
       riskInsight: form.riskInsight,
-      mitigations: { ...form.mitigations }
+      mitigations: { ...form.mitigations },
     };
     let updatedList = [...riskAreasList];
     if (editIndex !== null) {
@@ -127,42 +116,47 @@ const ReportForm = () => {
       updatedList.push(entry);
     }
     setRiskAreasList(updatedList);
-    // Clear form for next entry
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
       riskArea: "",
       riskInsight: "",
-      mitigations: emptyMitigation()
+      mitigations: emptyMitigation(),
     }));
   };
 
-  // Edit a risk area from temp list
   const handleEditRiskArea = (idx) => {
     const entry = riskAreasList[idx];
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
       riskArea: entry.riskArea,
       riskInsight: entry.riskInsight,
-      mitigations: { ...entry.mitigations }
+      mitigations: { ...entry.mitigations },
     }));
     setEditIndex(idx);
   };
 
-  // Delete a risk area from temp list
   const handleDeleteRiskArea = (idx) => {
     setRiskAreasList(riskAreasList.filter((_, i) => i !== idx));
     if (editIndex === idx) setEditIndex(null);
   };
 
-  // "Final" save to database (mocked)
   const handleFinalSave = () => {
     if (!form.quarter || !form.vendor || !form.pcm || riskAreasList.length === 0) {
-      setSnackbar({ open: true, message: "Please select all filters and add at least one Risk Area.", severity: "error" });
+      setSnackbar({
+        open: true,
+        message:
+          "Please select all filters and add at least one Risk Area.",
+        severity: "error",
+      });
       return;
     }
-    // Here you would POST the whole object to your API
+    // Here, you'd POST to your API
     setTimeout(() => {
-      setSnackbar({ open: true, message: "All risk areas saved to database!", severity: "success" });
+      setSnackbar({
+        open: true,
+        message: "All risk areas saved to database!",
+        severity: "success",
+      });
       setRiskAreasList([]);
     }, 900);
   };
@@ -176,7 +170,7 @@ const ReportForm = () => {
         mx: "auto",
         my: 6,
         borderRadius: 3,
-        bgcolor: "#fafcff"
+        bgcolor: "#fafcff",
       }}
     >
       <Typography variant="h5" fontWeight={700} gutterBottom>
@@ -193,8 +187,10 @@ const ReportForm = () => {
           required
           sx={{ flex: 1, minWidth: 180 }}
         >
-          {quarters.map(q => (
-            <MenuItem key={q} value={q}>{q}</MenuItem>
+          {quarters.map((q) => (
+            <MenuItem key={q} value={q}>
+              {q}
+            </MenuItem>
           ))}
         </TextField>
         <TextField
@@ -206,8 +202,10 @@ const ReportForm = () => {
           required
           sx={{ flex: 1, minWidth: 180 }}
         >
-          {vendors.map(v => (
-            <MenuItem key={v.name} value={v.name}>{v.name}</MenuItem>
+          {vendors.map((v) => (
+            <MenuItem key={v.name} value={v.name}>
+              {v.name}
+            </MenuItem>
           ))}
         </TextField>
         <TextField
@@ -220,28 +218,36 @@ const ReportForm = () => {
           sx={{ flex: 1, minWidth: 180 }}
           disabled={!form.vendor}
         >
-          {currentPcmIds.map(id => (
-            <MenuItem key={id} value={id}>{id}</MenuItem>
+          {currentPcmIds.map((id) => (
+            <MenuItem key={id} value={id}>
+              {id}
+            </MenuItem>
           ))}
         </TextField>
+      </Box>
+
+      {/* Risk Area in its own row */}
+      <Box sx={{ mb: 2 }}>
         <Autocomplete
           freeSolo
           value={form.riskArea}
           onChange={handleRiskAreaChange}
           inputValue={form.riskArea}
-          onInputChange={(event, newValue) => setForm(f => ({ ...f, riskArea: newValue }))}
-          options={currentExistingRiskAreas}
-          sx={{ flex: 1, minWidth: 180 }}
-          renderInput={(params) =>
-            <TextField {...params} label="Risk Area" required />
+          onInputChange={(event, newValue) =>
+            setForm((f) => ({ ...f, riskArea: newValue }))
           }
+          options={currentExistingRiskAreas}
+          sx={{ width: "100%" }}
+          renderInput={(params) => (
+            <TextField {...params} label="Risk Area" required />
+          )}
           disabled={!form.pcm}
         />
       </Box>
 
-      {/* If editing existing, maybe show a hint */}
+      {/* Editing hint */}
       {editIndex !== null && (
-        <Typography sx={{ color: 'primary.main', mb: 1, ml: 1 }}>
+        <Typography sx={{ color: "primary.main", mb: 1, ml: 1 }}>
           Editing Risk Area #{editIndex + 1}
         </Typography>
       )}
@@ -263,28 +269,27 @@ const ReportForm = () => {
         />
       </Box>
 
-      {/* Risk Mitigation Fields A-E */}
+      {/* Risk Mitigation Fields A-E, each in own row */}
       <Box sx={{ mt: 4 }}>
         <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
           Risk Mitigations (A–E)
         </Typography>
-        <Grid container spacing={2}>
+        <Stack spacing={2}>
           {["A", "B", "C", "D", "E"].map((key) => (
-            <Grid item xs={12} md={6} key={key}>
-              <TextField
-                label={`Risk Mitigation ${key}`}
-                name={key}
-                value={form.mitigations[key]}
-                onChange={handleMitigationChange}
-                multiline
-                minRows={2}
-                fullWidth
-                required={key === "A"} // make A required, rest optional (optional: up to you)
-                placeholder={`Mitigation ${key}`}
-              />
-            </Grid>
+            <TextField
+              key={key}
+              label={`Risk Mitigation ${key}`}
+              name={key}
+              value={form.mitigations[key]}
+              onChange={handleMitigationChange}
+              multiline
+              minRows={2}
+              fullWidth
+              required={key === "A"}
+              placeholder={`Mitigation ${key}`}
+            />
           ))}
-        </Grid>
+        </Stack>
       </Box>
 
       {/* Add Risk Area Button */}
@@ -298,36 +303,84 @@ const ReportForm = () => {
         </Button>
       </Box>
 
-      {/* List of Temp Risk Areas */}
+      {/* Grid/Table of Temp Risk Areas */}
       {riskAreasList.length > 0 && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" fontWeight={700} gutterBottom>
             Risk Areas for this PCM ID
           </Typography>
-          {riskAreasList.map((entry, idx) => (
-            <Paper key={idx} sx={{ p: 2, mb: 2, bgcolor: "#f1f6fc" }}>
-              <Grid container spacing={1} alignItems="center">
-                <Grid item xs={12} md={3}>
-                  <b>Risk Area:</b> {entry.riskArea}
-                </Grid>
-                <Grid item xs={12} md={5}>
-                  <b>Insight:</b> {entry.riskInsight}
-                </Grid>
-                <Grid item xs={12} md={3}>
-                  <b>Mitigations:</b>{" "}
-                  {["A", "B", "C", "D", "E"].map(key =>
-                    entry.mitigations[key] ? (
-                      <span key={key}><b>{key}:</b> {entry.mitigations[key]}{" "}</span>
-                    ) : null
-                  )}
-                </Grid>
-                <Grid item xs={12} md={1}>
-                  <IconButton onClick={() => handleEditRiskArea(idx)}><EditIcon /></IconButton>
-                  <IconButton onClick={() => handleDeleteRiskArea(idx)}><DeleteIcon /></IconButton>
-                </Grid>
-              </Grid>
-            </Paper>
-          ))}
+          <Paper elevation={2}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700, width: "18%" }}>
+                    Risk Area
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: "36%" }}>
+                    Risk Insight
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: "36%" }}>
+                    Risk Mitigation
+                  </TableCell>
+                  <TableCell
+                    sx={{ fontWeight: 700, width: "10%" }}
+                    align="center"
+                  >
+                    Actions
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {riskAreasList.map((entry, idx) => (
+                  <TableRow key={idx} hover>
+                    <TableCell>
+                      <Typography fontWeight={600}>
+                        {entry.riskArea}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {entry.riskInsight}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ pl: 1 }}>
+                        {["A", "B", "C", "D", "E"].map((key, mIdx) =>
+                          entry.mitigations[key] ? (
+                            <Typography
+                              variant="body2"
+                              sx={{ mb: 0.5 }}
+                              key={key}
+                            >
+                              <b>
+                                {idx + 1}
+                                {String.fromCharCode(97 + mIdx)}.
+                              </b>{" "}
+                              {entry.mitigations[key]}
+                            </Typography>
+                          ) : null
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton
+                        onClick={() => handleEditRiskArea(idx)}
+                        size="small"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => handleDeleteRiskArea(idx)}
+                        size="small"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Paper>
         </Box>
       )}
 
