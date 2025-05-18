@@ -1,24 +1,233 @@
-import React, { useState } from "react";
+import React from "react";
+import { Box, TextField, MenuItem } from "@mui/material";
+
+const ReportFormFilters = ({
+  quarter,
+  vendor,
+  pcm,
+  vendors,
+  pcmIds,
+  quarters,
+  onChange,
+  disabled
+}) => (
+  <Box sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap" }}>
+    <TextField
+      select
+      label="Report Quarter"
+      name="quarter"
+      value={quarter}
+      onChange={onChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={disabled}
+    >
+      {quarters.map((q) => (
+        <MenuItem key={q} value={q}>{q}</MenuItem>
+      ))}
+    </TextField>
+    <TextField
+      select
+      label="Vendor"
+      name="vendor"
+      value={vendor}
+      onChange={onChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={disabled}
+    >
+      {vendors.map((v) => (
+        <MenuItem key={v.name} value={v.name}>{v.name}</MenuItem>
+      ))}
+    </TextField>
+    <TextField
+      select
+      label="PCM ID"
+      name="pcm"
+      value={pcm}
+      onChange={onChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={!vendor || disabled}
+    >
+      {pcmIds.map((id) => (
+        <MenuItem key={id} value={id}>{id}</MenuItem>
+      ))}
+    </TextField>
+  </Box>
+);
+
+export default ReportFormFilters;
+
+----
+
+
+import React from "react";
+import { Box, Autocomplete, TextField } from "@mui/material";
+
+const RiskAreaInput = ({ value, onChange, options, disabled }) => (
+  <Box sx={{ mb: 2 }}>
+    <Autocomplete
+      freeSolo
+      value={value}
+      onChange={onChange}
+      inputValue={value}
+      onInputChange={(event, newValue) =>
+        onChange(event, newValue)
+      }
+      options={options}
+      sx={{ width: "100%" }}
+      renderInput={(params) => (
+        <TextField {...params} label="Risk Area" required />
+      )}
+      disabled={disabled}
+    />
+  </Box>
+);
+
+export default RiskAreaInput;
+
+
+-----
+
+
+import React from "react";
+import { Box, Typography, TextField } from "@mui/material";
+
+const RiskInsightInput = ({ value, onChange }) => (
+  <Box sx={{ mt: 2 }}>
+    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+      Risk Insight
+    </Typography>
+    <TextField
+      name="riskInsight"
+      value={value}
+      onChange={onChange}
+      multiline
+      minRows={5}
+      fullWidth
+      required
+      placeholder="Enter key risk insights here..."
+    />
+  </Box>
+);
+
+export default RiskInsightInput;
+
+
+---
+
+
+import React from "react";
+import { Box, Typography, Stack, TextField } from "@mui/material";
+
+const RiskMitigationsInput = ({ mitigations, onChange }) => (
+  <Box sx={{ mt: 4 }}>
+    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+      Risk Mitigations (A–E)
+    </Typography>
+    <Stack spacing={2}>
+      {["A", "B", "C", "D", "E"].map((key) => (
+        <TextField
+          key={key}
+          label={`Risk Mitigation ${key}`}
+          name={key}
+          value={mitigations[key]}
+          onChange={onChange}
+          multiline
+          minRows={2}
+          fullWidth
+          required={key === "A"}
+          placeholder={`Mitigation ${key}`}
+        />
+      ))}
+    </Stack>
+  </Box>
+);
+
+export default RiskMitigationsInput;
+
+
+
+----
+
+
+import React from "react";
 import {
   Box,
-  TextField,
-  MenuItem,
-  Button,
   Typography,
-  Snackbar,
-  Alert,
-  Paper,
-  Autocomplete,
-  Stack,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
-  IconButton,
+  Paper,
+  IconButton
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+
+const RiskAreaTable = ({ riskAreasList, onEdit, onDelete }) => (
+  riskAreasList.length > 0 && (
+    <Box sx={{ mt: 4 }}>
+      <Typography variant="h6" fontWeight={700} gutterBottom>
+        Risk Areas for this PCM ID
+      </Typography>
+      <Paper elevation={2}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, width: "18%" }}>Risk Area</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: "36%" }}>Risk Insight</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: "36%" }}>Risk Mitigation</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: "10%" }} align="center">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {riskAreasList.map((entry, idx) => (
+              <TableRow key={idx} hover>
+                <TableCell>
+                  <Typography fontWeight={600}>{entry.riskArea}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">{entry.riskInsight}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ pl: 1 }}>
+                    {["A", "B", "C", "D", "E"].map((key, mIdx) =>
+                      entry.mitigations[key] ? (
+                        <Typography variant="body2" sx={{ mb: 0.5 }} key={key}>
+                          <b>{idx + 1}{String.fromCharCode(97 + mIdx)}.</b> {entry.mitigations[key]}
+                        </Typography>
+                      ) : null
+                    )}
+                  </Box>
+                </TableCell>
+                <TableCell align="center">
+                  <IconButton onClick={() => onEdit(idx)} size="small"><EditIcon /></IconButton>
+                  <IconButton onClick={() => onDelete(idx)} size="small"><DeleteIcon /></IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+    </Box>
+  )
+);
+
+export default RiskAreaTable;
+
+
+---
+
+import React, { useState } from "react";
+import { Paper, Typography, Box, Button, Snackbar, Alert } from "@mui/material";
+import ReportFormFilters from "../components/report/ReportFormFilters";
+import RiskAreaInput from "../components/report/RiskAreaInput";
+import RiskInsightInput from "../components/report/RiskInsightInput";
+import RiskMitigationsInput from "../components/report/RiskMitigationsInput";
+import RiskAreaTable from "../components/report/RiskAreaTable";
 
 // Mock Data
 const vendors = [
@@ -150,7 +359,6 @@ const ReportForm = () => {
       });
       return;
     }
-    // Here, you'd POST to your API
     setTimeout(() => {
       setSnackbar({
         open: true,
@@ -176,122 +384,31 @@ const ReportForm = () => {
       <Typography variant="h5" fontWeight={700} gutterBottom>
         New Risk Report
       </Typography>
-      {/* Top filters */}
-      <Box sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap" }}>
-        <TextField
-          select
-          label="Report Quarter"
-          name="quarter"
-          value={form.quarter}
-          onChange={handleChange}
-          required
-          sx={{ flex: 1, minWidth: 180 }}
-        >
-          {quarters.map((q) => (
-            <MenuItem key={q} value={q}>
-              {q}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          label="Vendor"
-          name="vendor"
-          value={form.vendor}
-          onChange={handleChange}
-          required
-          sx={{ flex: 1, minWidth: 180 }}
-        >
-          {vendors.map((v) => (
-            <MenuItem key={v.name} value={v.name}>
-              {v.name}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          label="PCM ID"
-          name="pcm"
-          value={form.pcm}
-          onChange={handleChange}
-          required
-          sx={{ flex: 1, minWidth: 180 }}
-          disabled={!form.vendor}
-        >
-          {currentPcmIds.map((id) => (
-            <MenuItem key={id} value={id}>
-              {id}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Box>
-
-      {/* Risk Area in its own row */}
-      <Box sx={{ mb: 2 }}>
-        <Autocomplete
-          freeSolo
-          value={form.riskArea}
-          onChange={handleRiskAreaChange}
-          inputValue={form.riskArea}
-          onInputChange={(event, newValue) =>
-            setForm((f) => ({ ...f, riskArea: newValue }))
-          }
-          options={currentExistingRiskAreas}
-          sx={{ width: "100%" }}
-          renderInput={(params) => (
-            <TextField {...params} label="Risk Area" required />
-          )}
-          disabled={!form.pcm}
-        />
-      </Box>
-
-      {/* Editing hint */}
-      {editIndex !== null && (
-        <Typography sx={{ color: "primary.main", mb: 1, ml: 1 }}>
-          Editing Risk Area #{editIndex + 1}
-        </Typography>
-      )}
-
-      {/* Risk Insight */}
-      <Box sx={{ mt: 2 }}>
-        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-          Risk Insight
-        </Typography>
-        <TextField
-          name="riskInsight"
-          value={form.riskInsight}
-          onChange={handleChange}
-          multiline
-          minRows={5}
-          fullWidth
-          required
-          placeholder="Enter key risk insights here..."
-        />
-      </Box>
-
-      {/* Risk Mitigation Fields A-E, each in own row */}
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-          Risk Mitigations (A–E)
-        </Typography>
-        <Stack spacing={2}>
-          {["A", "B", "C", "D", "E"].map((key) => (
-            <TextField
-              key={key}
-              label={`Risk Mitigation ${key}`}
-              name={key}
-              value={form.mitigations[key]}
-              onChange={handleMitigationChange}
-              multiline
-              minRows={2}
-              fullWidth
-              required={key === "A"}
-              placeholder={`Mitigation ${key}`}
-            />
-          ))}
-        </Stack>
-      </Box>
-
+      {/* Filters Row */}
+      <ReportFormFilters
+        quarter={form.quarter}
+        vendor={form.vendor}
+        pcm={form.pcm}
+        vendors={vendors}
+        pcmIds={currentPcmIds}
+        quarters={quarters}
+        onChange={handleChange}
+      />
+      {/* Risk Area Row */}
+      <RiskAreaInput
+        value={form.riskArea}
+        onChange={handleRiskAreaChange}
+        options={currentExistingRiskAreas}
+        disabled={!form.pcm}
+      />
+      <RiskInsightInput
+        value={form.riskInsight}
+        onChange={handleChange}
+      />
+      <RiskMitigationsInput
+        mitigations={form.mitigations}
+        onChange={handleMitigationChange}
+      />
       {/* Add Risk Area Button */}
       <Box sx={{ mt: 3, textAlign: "right" }}>
         <Button
@@ -302,88 +419,12 @@ const ReportForm = () => {
           {editIndex !== null ? "Update Risk Area" : "Add Risk Area"}
         </Button>
       </Box>
-
-      {/* Grid/Table of Temp Risk Areas */}
-      {riskAreasList.length > 0 && (
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" fontWeight={700} gutterBottom>
-            Risk Areas for this PCM ID
-          </Typography>
-          <Paper elevation={2}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700, width: "18%" }}>
-                    Risk Area
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700, width: "36%" }}>
-                    Risk Insight
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700, width: "36%" }}>
-                    Risk Mitigation
-                  </TableCell>
-                  <TableCell
-                    sx={{ fontWeight: 700, width: "10%" }}
-                    align="center"
-                  >
-                    Actions
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {riskAreasList.map((entry, idx) => (
-                  <TableRow key={idx} hover>
-                    <TableCell>
-                      <Typography fontWeight={600}>
-                        {entry.riskArea}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {entry.riskInsight}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ pl: 1 }}>
-                        {["A", "B", "C", "D", "E"].map((key, mIdx) =>
-                          entry.mitigations[key] ? (
-                            <Typography
-                              variant="body2"
-                              sx={{ mb: 0.5 }}
-                              key={key}
-                            >
-                              <b>
-                                {idx + 1}
-                                {String.fromCharCode(97 + mIdx)}.
-                              </b>{" "}
-                              {entry.mitigations[key]}
-                            </Typography>
-                          ) : null
-                        )}
-                      </Box>
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton
-                        onClick={() => handleEditRiskArea(idx)}
-                        size="small"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleDeleteRiskArea(idx)}
-                        size="small"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        </Box>
-      )}
-
+      {/* Table of Temp Risk Areas */}
+      <RiskAreaTable
+        riskAreasList={riskAreasList}
+        onEdit={handleEditRiskArea}
+        onDelete={handleDeleteRiskArea}
+      />
       {/* Final Save Button */}
       <Box sx={{ mt: 4, textAlign: "center" }}>
         <Button
@@ -395,7 +436,6 @@ const ReportForm = () => {
           Save All to Database
         </Button>
       </Box>
-
       {/* Snackbar Toaster */}
       <Snackbar
         open={snackbar.open}
