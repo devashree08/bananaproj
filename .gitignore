@@ -1,29 +1,39 @@
-import React from "react";
-import { Alert, Box } from "@mui/material";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+using System.DirectoryServices.AccountManagement;
+using Microsoft.AspNetCore.Mvc;
 
-const InfoBanner = ({ children }) => (
-  <Box sx={{ my: 0, mb: 3, mx: "auto", maxWidth: 900 }}>
-    <Alert
-      icon={<InfoOutlinedIcon fontSize="inherit" />}
-      severity="info"
-      sx={{
-        fontSize: "1.07rem",
-        alignItems: "center",
-        boxShadow: 1,
-        bgcolor: "#e7f3fe",
-        color: "#15395b",
-        border: "1.5px solid #90caf9",
-        borderRadius: 2,
-      }}
-    >
-      {children || (
-        <>
-          <strong>Reminder:</strong> After saving your data to the database, please note that the Looker dashboard will reflect your updates within <b>3–4 hours</b>.
-        </>
-      )}
-    </Alert>
-  </Box>
-);
+[ApiController]
+[Route("api/[controller]")]
+public class UserInfoController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetUserInfo()
+    {
+        string domainAndUsername = User?.Identity?.Name ?? "Null";
 
-export default InfoBanner;
+        var result = new
+        {
+            Username = domainAndUsername,
+            FirstName = "Unknown",
+            LastName = "Unknown"
+        };
+
+        if (domainAndUsername != "Null")
+        {
+            using (var context = new PrincipalContext(ContextType.Domain))
+            {
+                var user = UserPrincipal.FindByIdentity(context, domainAndUsername);
+                if (user != null)
+                {
+                    result = new
+                    {
+                        Username = domainAndUsername,
+                        FirstName = user.GivenName ?? "Unknown",
+                        LastName = user.Surname ?? "Unknown"
+                    };
+                }
+            }
+        }
+
+        return Ok(result);
+    }
+}
