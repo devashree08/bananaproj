@@ -1,5 +1,5 @@
-using System.DirectoryServices.AccountManagement;
 using Microsoft.AspNetCore.Mvc;
+using System.DirectoryServices.AccountManagement;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -9,31 +9,30 @@ public class UserInfoController : ControllerBase
     public IActionResult GetUserInfo()
     {
         string domainAndUsername = User?.Identity?.Name ?? "Null";
+        string firstName = "Unknown";
+        string lastName = "Unknown";
 
-        var result = new
-        {
-            Username = domainAndUsername,
-            FirstName = "Unknown",
-            LastName = "Unknown"
-        };
-
-        if (domainAndUsername != "Null")
+        if (OperatingSystem.IsWindows() && domainAndUsername != "Null")
         {
             using (var context = new PrincipalContext(ContextType.Domain))
             {
                 var user = UserPrincipal.FindByIdentity(context, domainAndUsername);
                 if (user != null)
                 {
-                    result = new
-                    {
-                        Username = domainAndUsername,
-                        FirstName = user.GivenName ?? "Unknown",
-                        LastName = user.Surname ?? "Unknown"
-                    };
+                    firstName = user.GivenName ?? "Unknown";
+                    lastName = user.Surname ?? "Unknown";
                 }
             }
         }
 
+        var result = new
+        {
+            Username = domainAndUsername,
+            FirstName = firstName,
+            LastName = lastName
+        };
+
         return Ok(result);
     }
 }
+
