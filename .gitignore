@@ -1,38 +1,610 @@
-using Microsoft.AspNetCore.Mvc;
-using System.DirectoryServices.AccountManagement;
+import React from "react";
+import { Box, TextField, MenuItem } from "@mui/material";
 
-[ApiController]
-[Route("api/[controller]")]
-public class UserInfoController : ControllerBase
-{
-    [HttpGet]
-    public IActionResult GetUserInfo()
-    {
-        string domainAndUsername = User?.Identity?.Name ?? "Null";
-        string firstName = "Unknown";
-        string lastName = "Unknown";
+const ReportFormFilters = ({
+  quarters,
+  vendors,
+  pcmIds,
+  selectedQuarter,
+  selectedVendor,
+  selectedPCM,
+  onChange,
+  disabled,
+}) => (
+  <Box sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap" }}>
+    <TextField
+      select
+      label="Report Quarter"
+      name="quarter"
+      value={selectedQuarter}
+      onChange={onChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={disabled}
+    >
+      {quarters.map((q) => (
+        <MenuItem key={q} value={q}>{q}</MenuItem>
+      ))}
+    </TextField>
+    <TextField
+      select
+      label="Vendor"
+      name="vendor"
+      value={selectedVendor}
+      onChange={onChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={disabled}
+    >
+      {vendors.map((v) => (
+        <MenuItem key={v} value={v}>{v}</MenuItem>
+      ))}
+    </TextField>
+    <TextField
+      select
+      label="PCM ID"
+      name="pcm"
+      value={selectedPCM}
+      onChange={onChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={!selectedVendor || disabled}
+    >
+      {pcmIds.map((id) => (
+        <MenuItem key={id} value={id}>{id}</MenuItem>
+      ))}
+    </TextField>
+  </Box>
+);
 
-        if (OperatingSystem.IsWindows() && domainAndUsername != "Null")
-        {
-            using (var context = new PrincipalContext(ContextType.Domain))
-            {
-                var user = UserPrincipal.FindByIdentity(context, domainAndUsername);
-                if (user != null)
-                {
-                    firstName = user.GivenName ?? "Unknown";
-                    lastName = user.Surname ?? "Unknown";
-                }
-            }
-        }
+export default ReportFormFilters;
 
-        var result = new
-        {
-            Username = domainAndUsername,
-            FirstName = firstName,
-            LastName = lastName
-        };
 
-        return Ok(result);
+///
+
+import React from "react";
+import { Box, TextField, MenuItem } from "@mui/material";
+
+const RiskAreaInput = ({
+  riskAreaOptions,
+  selectedRiskArea,
+  onDropdownChange,
+  showOther,
+  otherRiskAreaValue,
+  onOtherChange,
+  disabled,
+}) => (
+  <Box sx={{ mb: 2 }}>
+    <TextField
+      select
+      label="Risk Area"
+      value={riskAreaOptions.includes(selectedRiskArea) ? selectedRiskArea : (showOther ? "Other" : "")}
+      onChange={onDropdownChange}
+      sx={{ width: "100%" }}
+      disabled={disabled}
+      required
+    >
+      {riskAreaOptions.map((opt) => (
+        <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+      ))}
+      <MenuItem value="Other">Other</MenuItem>
+    </TextField>
+    {showOther && (
+      <Box sx={{ mt: 1 }}>
+        <TextField
+          label="Enter new Risk Area"
+          value={otherRiskAreaValue}
+          onChange={onOtherChange}
+          sx={{ width: "100%" }}
+          required
+        />
+      </Box>
+    )}
+  </Box>
+);
+
+export default RiskAreaInput;
+
+
+////
+
+import React from "react";
+import { Box, Typography, TextField } from "@mui/material";
+
+const RiskInsightInput = ({ value, onChange }) => (
+  <Box sx={{ mt: 2 }}>
+    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+      Risk Insight
+    </Typography>
+    <TextField
+      name="riskInsight"
+      value={value}
+      onChange={onChange}
+      multiline
+      minRows={5}
+      fullWidth
+      required
+      placeholder="Enter key risk insights here..."
+    />
+  </Box>
+);
+
+export default RiskInsightInput;
+
+////
+
+import React from "react";
+import { Box, Typography, Stack, TextField } from "@mui/material";
+
+const RiskMitigationsInput = ({ mitigations, onChange }) => (
+  <Box sx={{ mt: 4 }}>
+    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+      Risk Mitigations (A–E)
+    </Typography>
+    <Stack spacing={2}>
+      {["A", "B", "C", "D", "E"].map((key) => (
+        <TextField
+          key={key}
+          label={`Risk Mitigation ${key}`}
+          name={key}
+          value={mitigations[key]}
+          onChange={onChange}
+          multiline
+          minRows={2}
+          fullWidth
+          required={key === "A"}
+          placeholder={`Mitigation ${key}`}
+        />
+      ))}
+    </Stack>
+  </Box>
+);
+
+export default RiskMitigationsInput;
+
+///
+
+import React from "react";
+import {
+  Box,
+  Typography,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Paper,
+  IconButton
+} from "@mui/material";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+
+const RiskAreaTable = ({ riskAreasList, onEdit, onDelete }) => (
+  riskAreasList.length > 0 && (
+    <Box sx={{ mt: 4 }}>
+      <Typography variant="h6" fontWeight={700} gutterBottom>
+        Risk Areas for this PCM ID
+      </Typography>
+      <Paper elevation={2}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, width: "18%" }}>Risk Area</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: "36%" }}>Risk Insight</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: "36%" }}>Risk Mitigation</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: "10%" }} align="center">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {riskAreasList.map((entry, idx) => (
+              <TableRow key={idx} hover>
+                <TableCell>
+                  <Typography fontWeight={600}>{entry.riskArea}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">{entry.riskInsight}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ pl: 1 }}>
+                    {["A", "B", "C", "D", "E"].map((key, mIdx) =>
+                      entry.mitigations[key] ? (
+                        <Typography variant="body2" sx={{ mb: 0.5 }} key={key}>
+                          <b>{idx + 1}{String.fromCharCode(97 + mIdx)}.</b> {entry.mitigations[key]}
+                        </Typography>
+                      ) : null
+                    )}
+                  </Box>
+                </TableCell>
+                <TableCell align="center">
+                  <IconButton onClick={() => onEdit(idx)} size="small"><EditIcon /></IconButton>
+                  <IconButton onClick={() => onDelete(idx)} size="small"><DeleteIcon /></IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+    </Box>
+  )
+);
+
+export default RiskAreaTable;
+
+///
+
+import React, { useState, useEffect } from "react";
+import { Paper, Typography, Box, Button, Snackbar, Alert, CircularProgress } from "@mui/material";
+import axios from "axios";
+import ReportFormFilters from "../components/report/ReportFormFilters";
+import RiskAreaInput from "../components/report/RiskAreaInput";
+import RiskInsightInput from "../components/report/RiskInsightInput";
+import RiskMitigationsInput from "../components/report/RiskMitigationsInput";
+import RiskAreaTable from "../components/report/RiskAreaTable";
+
+const quarters = ["Q1", "Q2", "Q3", "Q4"];
+const emptyMitigation = () => ({ A: "", B: "", C: "", D: "", E: "" });
+
+const ReportForm = () => {
+  // Filter State
+  const [vendors, setVendors] = useState([]); // List of vendor names
+  const [pcmIds, setPcmIds] = useState([]);   // List of PCM IDs for selected vendor
+
+  const [selectedQuarter, setSelectedQuarter] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("");
+  const [selectedPCM, setSelectedPCM] = useState("");
+
+  // Risk Area State
+  const [riskAreaOptions, setRiskAreaOptions] = useState([]); // For dropdown
+  const [riskArea, setRiskArea] = useState(""); // For API (actual value)
+  const [riskAreaDropdownValue, setRiskAreaDropdownValue] = useState(""); // For controlling dropdown
+  const [showOtherRiskArea, setShowOtherRiskArea] = useState(false);
+
+  // Risk Data State
+  const [riskInsight, setRiskInsight] = useState("");
+  const [mitigations, setMitigations] = useState(emptyMitigation());
+
+  // Table state for review before save
+  const [riskAreasList, setRiskAreasList] = useState([]);
+  const [editIndex, setEditIndex] = useState(null);
+
+  // UI state
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [loadingVendors, setLoadingVendors] = useState(false);
+  const [loadingPCM, setLoadingPCM] = useState(false);
+  const [loadingRiskAreas, setLoadingRiskAreas] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
+
+  // -- Fetch vendors and PCM IDs --
+  useEffect(() => {
+    setLoadingVendors(true);
+    axios.get("/GetVendorAcmID")
+      .then(res => {
+        // Backend must return [{Vendor: "Apple", PCMID: "PCM1002"}, ...]
+        const data = res.data || [];
+        const uniqueVendors = [...new Set(data.map(d => d.Vendor))];
+        setVendors(uniqueVendors);
+        setLoadingVendors(false);
+      })
+      .catch(() => setLoadingVendors(false));
+  }, []);
+
+  // -- Fetch PCM IDs for selected vendor --
+  useEffect(() => {
+    if (!selectedVendor) {
+      setPcmIds([]);
+      setSelectedPCM("");
+      return;
     }
-}
+    setLoadingPCM(true);
+    axios.get("/GetVendorAcmID", { params: { Vendor: selectedVendor } })
+      .then(res => {
+        const data = res.data || [];
+        setPcmIds([...new Set(data.map(d => d.PCMID))]);
+        setLoadingPCM(false);
+      })
+      .catch(() => setLoadingPCM(false));
+    setSelectedPCM("");
+  }, [selectedVendor]);
+
+  // -- Fetch Risk Areas for Vendor + PCM ID --
+  useEffect(() => {
+    if (!selectedVendor || !selectedPCM) {
+      setRiskAreaOptions([]);
+      setRiskArea("");
+      setShowOtherRiskArea(false);
+      setRiskAreaDropdownValue("");
+      return;
+    }
+    setLoadingRiskAreas(true);
+    axios.get("/GetRiskArea", {
+      params: { Vendor: selectedVendor, PCMID: selectedPCM }
+    })
+      .then(res => {
+        const data = res.data || [];
+        // Backend returns [{Risk_Area: "Mobile App"}, ...]
+        setRiskAreaOptions(data.map(d => d.Risk_Area));
+        setShowOtherRiskArea(false);
+        setRiskAreaDropdownValue("");
+        setLoadingRiskAreas(false);
+      })
+      .catch(() => setLoadingRiskAreas(false));
+    setRiskArea("");
+  }, [selectedVendor, selectedPCM]);
+
+  // -- Fetch Existing Data for Vendor + PCM + Risk Area --
+  useEffect(() => {
+    // Only fetch if dropdown, not "Other"
+    if (
+      selectedVendor &&
+      selectedPCM &&
+      riskAreaOptions.includes(riskArea) &&
+      riskArea
+    ) {
+      setLoadingData(true);
+      axios.get("/GetData", {
+        params: {
+          Vendor: selectedVendor,
+          PCMID: selectedPCM,
+          Risk_Area: riskArea
+        }
+      })
+        .then(res => {
+          const row = res.data?.[0];
+          if (row) {
+            setRiskInsight(row.Risk_Insights || "");
+            setMitigations({
+              A: row.Risk_Mitigation_a || "",
+              B: row.Risk_Mitigation_b || "",
+              C: row.Risk_Mitigation_c || "",
+              D: row.Risk_Mitigation_d || "",
+              E: row.Risk_Mitigation_e || "",
+            });
+          } else {
+            setRiskInsight("");
+            setMitigations(emptyMitigation());
+          }
+          setLoadingData(false);
+        })
+        .catch(() => setLoadingData(false));
+    } else {
+      // If not existing, clear
+      setRiskInsight("");
+      setMitigations(emptyMitigation());
+    }
+  }, [riskArea, selectedVendor, selectedPCM, riskAreaOptions]);
+
+  // -- Filter change handler --
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "quarter") setSelectedQuarter(value);
+    if (name === "vendor") setSelectedVendor(value);
+    if (name === "pcm") setSelectedPCM(value);
+    // Whenever vendor or PCM change, reset everything below
+    if (["vendor", "pcm"].includes(name)) {
+      setRiskAreaOptions([]);
+      setRiskArea("");
+      setRiskAreaDropdownValue("");
+      setShowOtherRiskArea(false);
+      setRiskInsight("");
+      setMitigations(emptyMitigation());
+    }
+  };
+
+  // -- Risk Area dropdown handler --
+  const handleRiskAreaDropdownChange = (e) => {
+    if (e.target.value === "Other") {
+      setShowOtherRiskArea(true);
+      setRiskAreaDropdownValue("Other");
+      setRiskArea(""); // blank until user enters new
+      setRiskInsight("");
+      setMitigations(emptyMitigation());
+    } else {
+      setShowOtherRiskArea(false);
+      setRiskAreaDropdownValue(e.target.value);
+      setRiskArea(e.target.value);
+      // Existing data will be fetched by useEffect
+    }
+  };
+
+  // -- Risk Area "Other" field handler --
+  const handleOtherRiskAreaInputChange = (e) => {
+    setRiskArea(e.target.value);
+    // No fetch, since new
+    setRiskInsight("");
+    setMitigations(emptyMitigation());
+  };
+
+  // -- Risk Insight handler --
+  const handleRiskInsightChange = (e) => setRiskInsight(e.target.value);
+
+  // -- Risk Mitigations handler --
+  const handleMitigationsChange = (e) => {
+    const { name, value } = e.target;
+    setMitigations((m) => ({ ...m, [name]: value }));
+  };
+
+  // -- Add Risk Area to local table --
+  const handleAddRiskArea = () => {
+    if (!riskArea || !riskInsight) {
+      setSnackbar({ open: true, message: "Please enter Risk Area and Risk Insight.", severity: "error" });
+      return;
+    }
+    const entry = {
+      riskArea,
+      riskInsight,
+      mitigations: { ...mitigations },
+    };
+    let updatedList = [...riskAreasList];
+    if (editIndex !== null) {
+      updatedList[editIndex] = entry;
+      setEditIndex(null);
+    } else {
+      updatedList.push(entry);
+    }
+    setRiskAreasList(updatedList);
+    setRiskArea("");
+    setRiskAreaDropdownValue("");
+    setShowOtherRiskArea(false);
+    setRiskInsight("");
+    setMitigations(emptyMitigation());
+  };
+
+  // -- Edit --
+  const handleEditRiskArea = (idx) => {
+    const entry = riskAreasList[idx];
+    if (riskAreaOptions.includes(entry.riskArea)) {
+      setRiskAreaDropdownValue(entry.riskArea);
+      setShowOtherRiskArea(false);
+    } else {
+      setRiskAreaDropdownValue("Other");
+      setShowOtherRiskArea(true);
+    }
+    setRiskArea(entry.riskArea);
+    setRiskInsight(entry.riskInsight);
+    setMitigations({ ...entry.mitigations });
+    setEditIndex(idx);
+  };
+
+  // -- Delete --
+  const handleDeleteRiskArea = (idx) => {
+    setRiskAreasList(riskAreasList.filter((_, i) => i !== idx));
+    if (editIndex === idx) setEditIndex(null);
+  };
+
+  // -- Save to database (submit all) --
+  const handleFinalSave = () => {
+    if (!selectedQuarter || !selectedVendor || !selectedPCM || riskAreasList.length === 0) {
+      setSnackbar({ open: true, message: "Please complete all filters and add at least one Risk Area.", severity: "error" });
+      return;
+    }
+    // Make a POST call for each risk area
+    const savePromises = riskAreasList.map((entry) =>
+      axios.post("/UpdateInsightsData", {
+        Vendor: selectedVendor,
+        PCMID: selectedPCM,
+        Risk_Area: entry.riskArea,
+        Risk_Insights: entry.riskInsight,
+        Risk_Mitigation_a: entry.mitigations.A,
+        Risk_Mitigation_b: entry.mitigations.B,
+        Risk_Mitigation_c: entry.mitigations.C,
+        Risk_Mitigation_d: entry.mitigations.D,
+        Risk_Mitigation_e: entry.mitigations.E,
+      })
+    );
+    Promise.all(savePromises)
+      .then(() => {
+        setSnackbar({ open: true, message: "All risk areas saved to database!", severity: "success" });
+        setRiskAreasList([]);
+      })
+      .catch(() => setSnackbar({ open: true, message: "Failed to save data.", severity: "error" }));
+  };
+
+  return (
+    <Paper
+      elevation={3}
+      sx={{
+        p: { xs: 2, sm: 4 },
+        width: "100%",
+        mx: "auto",
+        my: 2,
+        borderRadius: 3,
+        bgcolor: "#fafcff",
+      }}
+    >
+      <Typography variant="h5" fontWeight={700} gutterBottom>
+        New Risk Report
+      </Typography>
+      {loadingVendors ? (
+        <Box sx={{ py: 6, textAlign: "center" }}><CircularProgress /></Box>
+      ) : (
+        <>
+          {/* Filters Row */}
+          <ReportFormFilters
+            quarters={quarters}
+            vendors={vendors}
+            pcmIds={pcmIds}
+            selectedQuarter={selectedQuarter}
+            selectedVendor={selectedVendor}
+            selectedPCM={selectedPCM}
+            onChange={handleFilterChange}
+            disabled={loadingPCM}
+          />
+
+          {/* Risk Area Selector */}
+          <RiskAreaInput
+            riskAreaOptions={riskAreaOptions}
+            selectedRiskArea={riskAreaDropdownValue}
+            onDropdownChange={handleRiskAreaDropdownChange}
+            showOther={showOtherRiskArea}
+            otherRiskAreaValue={riskArea}
+            onOtherChange={handleOtherRiskAreaInputChange}
+            disabled={loadingRiskAreas || !selectedPCM}
+          />
+
+          {/* Risk Insight */}
+          <RiskInsightInput
+            value={riskInsight}
+            onChange={handleRiskInsightChange}
+          />
+
+          {/* Risk Mitigations */}
+          <RiskMitigationsInput
+            mitigations={mitigations}
+            onChange={handleMitigationsChange}
+          />
+
+          {/* Add Risk Area Button */}
+          <Box sx={{ mt: 3, textAlign: "right" }}>
+            <Button
+              variant="outlined"
+              onClick={handleAddRiskArea}
+              sx={{ px: 4, fontWeight: 700 }}
+              disabled={loadingData}
+            >
+              {editIndex !== null ? "Update Risk Area" : "Add Risk Area"}
+            </Button>
+          </Box>
+
+          {/* Table of Temp Risk Areas */}
+          <RiskAreaTable
+            riskAreasList={riskAreasList}
+            onEdit={handleEditRiskArea}
+            onDelete={handleDeleteRiskArea}
+          />
+
+          {/* Final Save Button */}
+          <Box sx={{ mt: 4, textAlign: "center" }}>
+            <Button
+              variant="contained"
+              size="large"
+              sx={{ px: 6, py: 1.5, fontWeight: 700 }}
+              onClick={handleFinalSave}
+            >
+              Save All to Database
+            </Button>
+          </Box>
+        </>
+      )}
+      {/* Snackbar Toaster */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2800}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Paper>
+  );
+};
+
+export default ReportForm;
+
 
