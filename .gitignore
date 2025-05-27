@@ -1,27 +1,19 @@
-import React from "react";
-import { Alert, Box } from "@mui/material";
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+// In the table cell for mitigations:
+<Box sx={{ pl: 1 }}>
+  {["A", "B", "C", "D", "E"].map((key) => {
+    const val = entry.mitigations[key];
+    if (!val) return null;
 
-const SaveReminder = () => (
-  <Box sx={{ mt: 3, mb: 2, mx: "auto", maxWidth: 900 }}>
-    <Alert
-      icon={<InfoOutlinedIcon fontSize="inherit" />}
-      severity="info"
-      sx={{
-        fontSize: "1.07rem",
-        alignItems: "center",
-        boxShadow: 1,
-        bgcolor: "#e7f3fe",
-        color: "#15395b",
-        border: "1.5px solid #90caf9",
-        borderRadius: 2
-      }}
-    >
-      <b>Reminder:</b> Please note, clicking <b>“Add Risk Area”</b> only saves your entry temporarily.
-      <br />
-      You <b>must</b> click <b>“Save All to Database”</b> below to permanently save your data!
-    </Alert>
-  </Box>
-);
-
-export default SaveReminder;
+    // Check for bullet like "1a." or "2b." at start
+    const bulletMatch = val.match(/^(\d+[a-eA-E]?\.)\s*/);
+    return (
+      <Typography variant="body2" sx={{ mb: 0.5 }} key={key}>
+        {bulletMatch ? (
+          <>
+            <b>{bulletMatch[1]}</b> {val.slice(bulletMatch[0].length)}
+          </>
+        ) : val}
+      </Typography>
+    );
+  })}
+</Box>
