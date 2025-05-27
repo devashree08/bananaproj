@@ -1,37 +1,27 @@
-          {/* Risk Insight */}
-          <RiskInsightInput
-            value={riskInsight}
-            onChange={handleRiskInsightChange}
-          />
-          {showInsightTip && (
-            <Box sx={{ mt: 1, mb: 2 }}>
-              <Alert
-                severity="info"
-                variant="outlined"
-                onClose={() => setShowInsightTip(false)}
-                sx={{ fontSize: "0.95rem", bgcolor: "#f0f8ff" }}
+        {showTip && (
+          <Alert
+            severity="info"
+            icon={<InfoOutlinedIcon fontSize="small" />}
+            sx={{
+              py: 0.5,
+              px: 1.5,
+              bgcolor: "#e7f3fe",
+              color: "#15395b",
+              fontSize: "0.96rem",
+              alignItems: "center",
+              border: "1px solid #90caf9",
+              borderRadius: 1.5,
+              m: 0,
+              ml: 0.5,
+              display: "flex"
+            }}
+            action={
+              <IconButton
+                size="small"
+                onClick={() => setShowTip(false)}
+                sx={{ color: "#1976d2" }}
               >
-                Tip: Number your insights (e.g., <b>1.</b>, <b>2.</b>) for clarity.
-                Example: <i>1. There is a risk due to ...</i>
-              </Alert>
-            </Box>
-          )}
-
-{/* Risk Mitigations */}
-          <RiskMitigationsInput
-            mitigations={mitigations}
-            onChange={handleMitigationsChange}
-          />
-          {showMitigTip && (
-            <Box sx={{ mt: 1, mb: 2 }}>
-              <Alert
-                severity="info"
-                variant="outlined"
-                onClose={() => setShowMitigTip(false)}
-                sx={{ fontSize: "0.95rem", bgcolor: "#f0f8ff" }}
-              >
-                Tip: Use sub-numbers for mitigations (e.g., <b>1a.</b>, <b>1b.</b>)
-                to match insights. Example: <i>1a. Review access logs weekly</i>
-              </Alert>
-            </Box>
-          )}
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            }
+          >
