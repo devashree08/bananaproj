@@ -1,8 +1,27 @@
-DECLARE @Today DATE = GETDATE(); -- or use a parameter
-DECLARE @Quarter INT = DATEPART(QUARTER, @Today);
-DECLARE @Year INT = YEAR(@Today);
+import React from "react";
+import { Alert, Box } from "@mui/material";
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
--- Final label
-DECLARE @ReportQuarter NVARCHAR(20) = CONCAT(@Year, ' Q', @Quarter);
+const SaveReminder = () => (
+  <Box sx={{ mt: 3, mb: 2, mx: "auto", maxWidth: 900 }}>
+    <Alert
+      icon={<InfoOutlinedIcon fontSize="inherit" />}
+      severity="info"
+      sx={{
+        fontSize: "1.07rem",
+        alignItems: "center",
+        boxShadow: 1,
+        bgcolor: "#e7f3fe",
+        color: "#15395b",
+        border: "1.5px solid #90caf9",
+        borderRadius: 2
+      }}
+    >
+      <b>Reminder:</b> Please note, clicking <b>“Add Risk Area”</b> only saves your entry temporarily.
+      <br />
+      You <b>must</b> click <b>“Save All to Database”</b> below to permanently save your data!
+    </Alert>
+  </Box>
+);
 
-SELECT @ReportQuarter AS ReportQuarter;
+export default SaveReminder;
