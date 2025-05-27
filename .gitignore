@@ -1,19 +1,67 @@
-// In the table cell for mitigations:
-<Box sx={{ pl: 1 }}>
-  {["A", "B", "C", "D", "E"].map((key) => {
-    const val = entry.mitigations[key];
-    if (!val) return null;
+import React from "react";
+import { Box, TextField, MenuItem, CircularProgress } from "@mui/material";
+import Autocomplete from "@mui/material/Autocomplete";
 
-    // Check for bullet like "1a." or "2b." at start
-    const bulletMatch = val.match(/^(\d+[a-eA-E]?\.)\s*/);
-    return (
-      <Typography variant="body2" sx={{ mb: 0.5 }} key={key}>
-        {bulletMatch ? (
-          <>
-            <b>{bulletMatch[1]}</b> {val.slice(bulletMatch[0].length)}
-          </>
-        ) : val}
-      </Typography>
-    );
-  })}
-</Box>
+const ReportFormFilters = ({
+  currentQuarter,
+  vendors,
+  pcmIds,
+  selectedVendor,
+  selectedPCM,
+  onVendorChange,
+  onPCMChange,
+  loadingVendor,
+  loadingPCM,
+}) => (
+  <Box sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap" }}>
+    <TextField
+      label="Report Quarter"
+      value={currentQuarter}
+      InputProps={{ readOnly: true }}
+      sx={{ flex: 1, minWidth: 180 }}
+    />
+    <Autocomplete
+      options={vendors}
+      value={selectedVendor || ""}
+      onChange={(e, newVal) => onVendorChange(newVal)}
+      loading={loadingVendor}
+      sx={{ flex: 1, minWidth: 180 }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Vendor"
+          required
+          InputProps={{
+            ...params.InputProps,
+            endAdornment: (
+              <>
+                {loadingVendor ? <CircularProgress color="inherit" size={18} /> : null}
+                {params.InputProps.endAdornment}
+              </>
+            ),
+          }}
+        />
+      )}
+      isOptionEqualToValue={(option, value) => option === value}
+      disabled={loadingVendor}
+    />
+    <TextField
+      select
+      label="PCM ID"
+      value={selectedPCM}
+      onChange={onPCMChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={!selectedVendor || loadingPCM}
+      InputProps={{
+        endAdornment: loadingPCM ? <CircularProgress color="inherit" size={18} /> : null,
+      }}
+    >
+      {pcmIds.map((id) => (
+        <MenuItem key={id} value={id}>{id}</MenuItem>
+      ))}
+    </TextField>
+  </Box>
+);
+
+export default ReportFormFilters;
