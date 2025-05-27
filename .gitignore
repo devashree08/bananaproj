@@ -1,1 +1,74 @@
+import React from "react";
+import { Box, TextField, MenuItem, CircularProgress } from "@mui/material";
+import Autocomplete from "@mui/material/Autocomplete";
 
+const ReportFormFilters = ({
+  quarters,
+  vendors,
+  pcmIds,
+  selectedQuarter,
+  selectedVendor,
+  selectedPCM,
+  onQuarterChange,
+  onVendorChange,
+  onPCMChange,
+  loadingVendor,
+  loadingPCM,
+}) => (
+  <Box sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap" }}>
+    <TextField
+      select
+      label="Report Quarter"
+      value={selectedQuarter}
+      onChange={onQuarterChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+    >
+      {quarters.map((q) => (
+        <MenuItem key={q} value={q}>{q}</MenuItem>
+      ))}
+    </TextField>
+    <Autocomplete
+      options={vendors}
+      value={selectedVendor}
+      onChange={(e, newVal) => onVendorChange(newVal)}
+      loading={loadingVendor}
+      sx={{ flex: 1, minWidth: 180 }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Vendor"
+          required
+          InputProps={{
+            ...params.InputProps,
+            endAdornment: (
+              <>
+                {loadingVendor ? <CircularProgress color="inherit" size={18} /> : null}
+                {params.InputProps.endAdornment}
+              </>
+            ),
+          }}
+        />
+      )}
+      isOptionEqualToValue={(option, value) => option === value}
+    />
+    <TextField
+      select
+      label="PCM ID"
+      value={selectedPCM}
+      onChange={onPCMChange}
+      required
+      sx={{ flex: 1, minWidth: 180 }}
+      disabled={!selectedVendor || loadingPCM}
+      InputProps={{
+        endAdornment: loadingPCM ? <CircularProgress color="inherit" size={18} /> : null,
+      }}
+    >
+      {pcmIds.map((id) => (
+        <MenuItem key={id} value={id}>{id}</MenuItem>
+      ))}
+    </TextField>
+  </Box>
+);
+
+export default ReportFormFilters;
