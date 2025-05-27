@@ -30,7 +30,7 @@ const ReportFormFilters = ({
     </TextField>
     <Autocomplete
       options={vendors}
-      value={selectedVendor}
+      value={selectedVendor || ""}
       onChange={(e, newVal) => onVendorChange(newVal)}
       loading={loadingVendor}
       sx={{ flex: 1, minWidth: 180 }}
@@ -51,6 +51,7 @@ const ReportFormFilters = ({
         />
       )}
       isOptionEqualToValue={(option, value) => option === value}
+      disabled={loadingVendor}
     />
     <TextField
       select
