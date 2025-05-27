@@ -1,75 +1,350 @@
-import React from "react";
-import { Box, TextField, MenuItem, CircularProgress } from "@mui/material";
-import Autocomplete from "@mui/material/Autocomplete";
+import React, { useState, useEffect } from "react";
+import { Paper, Typography, Box, Button, Snackbar, Alert, CircularProgress } from "@mui/material";
+import axios from "axios";
+import ReportFormFilters from "../components/report/ReportFormFilters";
+import RiskAreaInput from "../components/report/RiskAreaInput";
+import RiskInsightInput from "../components/report/RiskInsightInput";
+import RiskMitigationsInput from "../components/report/RiskMitigationsInput";
+import RiskAreaTable from "../components/report/RiskAreaTable";
 
-const ReportFormFilters = ({
-  quarters,
-  vendors,
-  pcmIds,
-  selectedQuarter,
-  selectedVendor,
-  selectedPCM,
-  onQuarterChange,
-  onVendorChange,
-  onPCMChange,
-  loadingVendor,
-  loadingPCM,
-}) => (
-  <Box sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap" }}>
-    <TextField
-      select
-      label="Report Quarter"
-      value={selectedQuarter}
-      onChange={onQuarterChange}
-      required
-      sx={{ flex: 1, minWidth: 180 }}
-    >
-      {quarters.map((q) => (
-        <MenuItem key={q} value={q}>{q}</MenuItem>
-      ))}
-    </TextField>
-    <Autocomplete
-      options={vendors}
-      value={selectedVendor || ""}
-      onChange={(e, newVal) => onVendorChange(newVal)}
-      loading={loadingVendor}
-      sx={{ flex: 1, minWidth: 180 }}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label="Vendor"
-          required
-          InputProps={{
-            ...params.InputProps,
-            endAdornment: (
-              <>
-                {loadingVendor ? <CircularProgress color="inherit" size={18} /> : null}
-                {params.InputProps.endAdornment}
-              </>
-            ),
-          }}
-        />
-      )}
-      isOptionEqualToValue={(option, value) => option === value}
-      disabled={loadingVendor}
-    />
-    <TextField
-      select
-      label="PCM ID"
-      value={selectedPCM}
-      onChange={onPCMChange}
-      required
-      sx={{ flex: 1, minWidth: 180 }}
-      disabled={!selectedVendor || loadingPCM}
-      InputProps={{
-        endAdornment: loadingPCM ? <CircularProgress color="inherit" size={18} /> : null,
+const quarters = ["Q1", "Q2", "Q3", "Q4"];
+const emptyMitigation = () => ({ A: "", B: "", C: "", D: "", E: "" });
+
+const ReportForm = () => {
+  // Filters State
+  const [vendors, setVendors] = useState([]);
+  const [selectedVendor, setSelectedVendor] = useState("");
+  const [pcmIds, setPcmIds] = useState([]);
+  const [selectedPCM, setSelectedPCM] = useState("");
+  const [quartersList] = useState(quarters);
+  const [selectedQuarter, setSelectedQuarter] = useState("");
+  const [loadingVendor, setLoadingVendor] = useState(false);
+  const [loadingPCM, setLoadingPCM] = useState(false);
+
+  // Risk Area State
+  const [riskAreaOptions, setRiskAreaOptions] = useState([]);
+  const [riskArea, setRiskArea] = useState("");
+  const [riskAreaDropdownValue, setRiskAreaDropdownValue] = useState("");
+  const [showOtherRiskArea, setShowOtherRiskArea] = useState(false);
+  const [loadingRiskAreas, setLoadingRiskAreas] = useState(false);
+
+  // Risk Data State
+  const [riskInsight, setRiskInsight] = useState("");
+  const [mitigations, setMitigations] = useState(emptyMitigation());
+  const [loadingData, setLoadingData] = useState(false);
+
+  // Review Table
+  const [riskAreasList, setRiskAreasList] = useState([]);
+  const [editIndex, setEditIndex] = useState(null);
+
+  // UI
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  // --- Fetch Vendors ---
+  useEffect(() => {
+    setLoadingVendor(true);
+    axios.get("/GetVendor")
+      .then(res => {
+        setVendors(res.data || []);
+        setLoadingVendor(false);
+      })
+      .catch(() => setLoadingVendor(false));
+  }, []);
+
+  // --- Fetch PCMIDs for Vendor ---
+  useEffect(() => {
+    if (!selectedVendor) {
+      setPcmIds([]);
+      setSelectedPCM("");
+      return;
+    }
+    setLoadingPCM(true);
+    axios.get("/GetPCMID", { params: { vendor: selectedVendor } })
+      .then(res => {
+        setPcmIds(res.data || []);
+        setLoadingPCM(false);
+      })
+      .catch(() => setLoadingPCM(false));
+    setSelectedPCM("");
+  }, [selectedVendor]);
+
+  // --- Fetch Risk Areas for Vendor + PCMID ---
+  useEffect(() => {
+    if (!selectedVendor || !selectedPCM) {
+      setRiskAreaOptions([]);
+      setRiskArea("");
+      setShowOtherRiskArea(false);
+      setRiskAreaDropdownValue("");
+      return;
+    }
+    setLoadingRiskAreas(true);
+    axios.get("/GetRiskArea", {
+      params: { vendor: selectedVendor, pcmid: selectedPCM }
+    })
+      .then(res => {
+        setRiskAreaOptions(res.data || []);
+        setShowOtherRiskArea(false);
+        setRiskAreaDropdownValue("");
+        setLoadingRiskAreas(false);
+      })
+      .catch(() => setLoadingRiskAreas(false));
+    setRiskArea("");
+  }, [selectedVendor, selectedPCM]);
+
+  // --- Fetch Existing Data for Vendor + PCMID + Risk Area ---
+  useEffect(() => {
+    // Only fetch if dropdown (not "Other")
+    if (
+      selectedVendor &&
+      selectedPCM &&
+      riskAreaOptions.includes(riskArea) &&
+      riskArea
+    ) {
+      setLoadingData(true);
+      axios.get("/GetData", {
+        params: {
+          vendor: selectedVendor,
+          pcmid: selectedPCM,
+          risk_Area: riskArea
+        }
+      })
+        .then(res => {
+          const row = res.data?.[0];
+          if (row) {
+            setRiskInsight(row.risk_Insights || "");
+            setMitigations({
+              A: row.risk_Mitigation_a || "",
+              B: row.risk_Mitigation_b || "",
+              C: row.risk_Mitigation_c || "",
+              D: row.risk_Mitigation_d || "",
+              E: row.risk_Mitigation_e || "",
+            });
+          } else {
+            setRiskInsight("");
+            setMitigations(emptyMitigation());
+          }
+          setLoadingData(false);
+        })
+        .catch(() => setLoadingData(false));
+    } else {
+      setRiskInsight("");
+      setMitigations(emptyMitigation());
+    }
+  }, [riskArea, selectedVendor, selectedPCM, riskAreaOptions]);
+
+  // -- Handlers --
+  const handleQuarterChange = (e) => setSelectedQuarter(e.target.value);
+  const handleVendorChange = (value) => setSelectedVendor(value || "");
+  const handlePCMChange = (e) => setSelectedPCM(e.target.value);
+
+  const handleRiskAreaDropdownChange = (e) => {
+    if (e.target.value === "Other") {
+      setShowOtherRiskArea(true);
+      setRiskAreaDropdownValue("Other");
+      setRiskArea(""); // blank until user enters new
+      setRiskInsight("");
+      setMitigations(emptyMitigation());
+    } else {
+      setShowOtherRiskArea(false);
+      setRiskAreaDropdownValue(e.target.value);
+      setRiskArea(e.target.value);
+      // Existing data will be fetched by useEffect
+    }
+  };
+
+  const handleOtherRiskAreaInputChange = (e) => {
+    setRiskArea(e.target.value);
+    setRiskInsight("");
+    setMitigations(emptyMitigation());
+  };
+
+  const handleRiskInsightChange = (e) => setRiskInsight(e.target.value);
+
+  const handleMitigationsChange = (e) => {
+    const { name, value } = e.target;
+    setMitigations((m) => ({ ...m, [name]: value }));
+  };
+
+  // -- Add to Review Table --
+  const handleAddRiskArea = () => {
+    if (!riskArea || !riskInsight) {
+      setSnackbar({ open: true, message: "Please enter Risk Area and Risk Insight.", severity: "error" });
+      return;
+    }
+    const entry = {
+      riskArea,
+      riskInsight,
+      mitigations: { ...mitigations },
+    };
+    let updatedList = [...riskAreasList];
+    if (editIndex !== null) {
+      updatedList[editIndex] = entry;
+      setEditIndex(null);
+    } else {
+      updatedList.push(entry);
+    }
+    setRiskAreasList(updatedList);
+    setRiskArea("");
+    setRiskAreaDropdownValue("");
+    setShowOtherRiskArea(false);
+    setRiskInsight("");
+    setMitigations(emptyMitigation());
+  };
+
+  const handleEditRiskArea = (idx) => {
+    const entry = riskAreasList[idx];
+    if (riskAreaOptions.includes(entry.riskArea)) {
+      setRiskAreaDropdownValue(entry.riskArea);
+      setShowOtherRiskArea(false);
+    } else {
+      setRiskAreaDropdownValue("Other");
+      setShowOtherRiskArea(true);
+    }
+    setRiskArea(entry.riskArea);
+    setRiskInsight(entry.riskInsight);
+    setMitigations({ ...entry.mitigations });
+    setEditIndex(idx);
+  };
+
+  const handleDeleteRiskArea = (idx) => {
+    setRiskAreasList(riskAreasList.filter((_, i) => i !== idx));
+    if (editIndex === idx) setEditIndex(null);
+  };
+
+  const handleFinalSave = () => {
+    if (!selectedQuarter || !selectedVendor || !selectedPCM || riskAreasList.length === 0) {
+      setSnackbar({ open: true, message: "Please complete all filters and add at least one Risk Area.", severity: "error" });
+      return;
+    }
+    const savePromises = riskAreasList.map((entry) =>
+      axios.post("/UpdateInsightsData", {
+        vendor: selectedVendor,
+        pcmid: selectedPCM,
+        risk_Area: entry.riskArea,
+        risk_Insights: entry.riskInsight,
+        risk_Mitigation_a: entry.mitigations.A,
+        risk_Mitigation_b: entry.mitigations.B,
+        risk_Mitigation_c: entry.mitigations.C,
+        risk_Mitigation_d: entry.mitigations.D,
+        risk_Mitigation_e: entry.mitigations.E,
+      })
+    );
+    Promise.all(savePromises)
+      .then(() => {
+        setSnackbar({ open: true, message: "All risk areas saved to database!", severity: "success" });
+        setRiskAreasList([]);
+      })
+      .catch(() => setSnackbar({ open: true, message: "Failed to save data.", severity: "error" }));
+  };
+
+  return (
+    <Paper
+      elevation={3}
+      sx={{
+        p: { xs: 2, sm: 4 },
+        width: "100%",
+        mx: "auto",
+        my: 2,
+        borderRadius: 3,
+        bgcolor: "#fafcff",
       }}
     >
-      {pcmIds.map((id) => (
-        <MenuItem key={id} value={id}>{id}</MenuItem>
-      ))}
-    </TextField>
-  </Box>
-);
+      <Typography variant="h5" fontWeight={700} gutterBottom>
+        New Risk Report
+      </Typography>
+      {loadingVendor ? (
+        <Box sx={{ py: 6, textAlign: "center" }}><CircularProgress /></Box>
+      ) : (
+        <>
+          {/* Filters Row */}
+          <ReportFormFilters
+            quarters={quartersList}
+            vendors={vendors}
+            pcmIds={pcmIds}
+            selectedQuarter={selectedQuarter}
+            selectedVendor={selectedVendor}
+            selectedPCM={selectedPCM}
+            onQuarterChange={handleQuarterChange}
+            onVendorChange={handleVendorChange}
+            onPCMChange={handlePCMChange}
+            loadingVendor={loadingVendor}
+            loadingPCM={loadingPCM}
+          />
 
-export default ReportFormFilters;
+          {/* Risk Area Selector */}
+          <RiskAreaInput
+            riskAreaOptions={riskAreaOptions}
+            selectedRiskArea={riskAreaDropdownValue}
+            onDropdownChange={handleRiskAreaDropdownChange}
+            showOther={showOtherRiskArea}
+            otherRiskAreaValue={riskArea}
+            onOtherChange={handleOtherRiskAreaInputChange}
+            disabled={loadingRiskAreas || !selectedPCM}
+            loading={loadingRiskAreas}
+          />
+
+          {/* Risk Insight */}
+          <RiskInsightInput
+            value={riskInsight}
+            onChange={handleRiskInsightChange}
+          />
+
+          {/* Risk Mitigations */}
+          <RiskMitigationsInput
+            mitigations={mitigations}
+            onChange={handleMitigationsChange}
+          />
+
+          {/* Add Risk Area Button */}
+          <Box sx={{ mt: 3, textAlign: "right" }}>
+            <Button
+              variant="outlined"
+              onClick={handleAddRiskArea}
+              sx={{ px: 4, fontWeight: 700 }}
+              disabled={loadingData}
+            >
+              {editIndex !== null ? "Update Risk Area" : "Add Risk Area"}
+            </Button>
+          </Box>
+
+          {/* Table of Temp Risk Areas */}
+          <RiskAreaTable
+            riskAreasList={riskAreasList}
+            onEdit={handleEditRiskArea}
+            onDelete={handleDeleteRiskArea}
+          />
+
+          {/* Final Save Button */}
+          <Box sx={{ mt: 4, textAlign: "center" }}>
+            <Button
+              variant="contained"
+              size="large"
+              sx={{ px: 6, py: 1.5, fontWeight: 700 }}
+              onClick={handleFinalSave}
+            >
+              Save All to Database
+            </Button>
+          </Box>
+        </>
+      )}
+      {/* Snackbar Toaster */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2800}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Paper>
+  );
+};
+
+export default ReportForm;
