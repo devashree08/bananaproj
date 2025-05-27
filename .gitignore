@@ -1,3 +1,59 @@
- // Dismissible callouts
-  const [showInsightTip, setShowInsightTip] = useState(true);
-  const [showMitigTip, setShowMitigTip] = useState(true);
+// -- Allow Save Even Without Temp Table --
+  const canFinalSave =
+    (riskAreasList.length > 0) ||
+    (riskArea && riskInsight && Object.values(mitigations).some(val => val.trim() !== ""));
+
+  const handleFinalSave = () => {
+    if (!selectedVendor || !selectedPCM || !canFinalSave) {
+      setSnackbar({
+        open: true,
+        message: "Please select Vendor, PCM ID, and enter all required data.",
+        severity: "error"
+      });
+      return;
+    }
+    // Gather all entries to save
+    const entriesToSave = [...riskAreasList];
+    // Add current, unsaved entry if all required fields filled
+    if (
+      riskArea &&
+      riskInsight &&
+      Object.values(mitigations).some(val => val.trim() !== "")
+    ) {
+      entriesToSave.push({
+        riskArea,
+        riskInsight,
+        mitigations: { ...mitigations }
+      });
+    }
+    const savePromises = entriesToSave.map((entry) =>
+      axios.post("/UpdateInsightsData", {
+        vendor: selectedVendor,
+        pcmid: selectedPCM,
+        risk_Area: entry.riskArea,
+        risk_Insights: entry.riskInsight,
+        risk_Mitigation_a: entry.mitigations.A,
+        risk_Mitigation_b: entry.mitigations.B,
+        risk_Mitigation_c: entry.mitigations.C,
+        risk_Mitigation_d: entry.mitigations.D,
+        risk_Mitigation_e: entry.mitigations.E,
+      })
+    );
+    Promise.all(savePromises)
+      .then(() => {
+        setSnackbar({ open: true, message: "All risk areas saved to database!", severity: "success" });
+        setRiskAreasList([]);
+        setRiskArea("");
+        setRiskAreaDropdownValue("");
+        setShowOtherRiskArea(false);
+        setRiskInsight("");
+        setMitigations(emptyMitigation());
+        // Refetch the risk areas so new ones appear in dropdown
+        axios.get("/GetRiskArea", {
+          params: { vendor: selectedVendor, pcmid: selectedPCM }
+        }).then(res => {
+          setRiskAreaOptions(res.data || []);
+        });
+      })
+      .catch(() => setSnackbar({ open: true, message: "Failed to save data.", severity: "error" }));
+  };
