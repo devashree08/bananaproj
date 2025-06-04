@@ -1,27 +1,4 @@
- // --- Fetch Risk Areas for Vendor + PCMID ---
-  useEffect(() => {
-    if (!selectedVendor || !selectedPCM) {
-      setRiskAreaOptions([]);
-      setRiskArea("");
-      setShowOtherRiskArea(false);
-      setRiskAreaDropdownValue("");
-      return;
-    }
-    setLoadingRiskAreas(true);
-    axios.get("/GetRiskArea", {
-      params: { vendor: selectedVendor, pcmid: selectedPCM }
-    })
-      .then(res => {
-        setRiskAreaOptions(res.data || []);
-        setShowOtherRiskArea(false);
-        setRiskAreaDropdownValue("");
-        setLoadingRiskAreas(false);
-      })
-      .catch(() => setLoadingRiskAreas(false));
-    setRiskArea("");
-  }, [selectedVendor, selectedPCM]);
-
-  // --- Populate Table with Existing Database Entries ---
+// --- Populate Table with Existing Database Entries ---
   useEffect(() => {
     if (!selectedVendor || !selectedPCM) {
       setRiskAreasList([]);
