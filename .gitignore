@@ -1,64 +1,20 @@
-// --- Populate Table with Existing Database Entries ---
-  useEffect(() => {
-    if (!selectedVendor || !selectedPCM) {
-      setRiskAreasList([]);
-      return;
-    }
-    axios.get("/GetData", {
-      params: { vendor: selectedVendor, pcmid: selectedPCM }
-    }).then(res => {
-      if (res.data && Array.isArray(res.data)) {
-        setRiskAreasList(res.data.map(row => ({
-          riskArea: row.risk_Area,
-          riskInsight: row.risk_Insights,
-          mitigations: {
-            A: row.risk_Mitigation_a || "",
-            B: row.risk_Mitigation_b || "",
-            C: row.risk_Mitigation_c || "",
-            D: row.risk_Mitigation_d || "",
-            E: row.risk_Mitigation_e || "",
+// Re-fetch the DB data for the table
+        axios.get("/GetData", {
+          params: { vendor: selectedVendor, pcmid: selectedPCM }
+        }).then(res => {
+          if (res.data && Array.isArray(res.data)) {
+            setRiskAreasList(res.data.map(row => ({
+              riskArea: row.risk_Area,
+              riskInsight: row.risk_Insights,
+              mitigations: {
+                A: row.risk_Mitigation_a || "",
+                B: row.risk_Mitigation_b || "",
+                C: row.risk_Mitigation_c || "",
+                D: row.risk_Mitigation_d || "",
+                E: row.risk_Mitigation_e || "",
+              }
+            })));
+          } else {
+            setRiskAreasList([]);
           }
-        })));
-      } else {
-        setRiskAreasList([]);
-      }
-    });
-  }, [selectedVendor, selectedPCM]);
-
-  // --- Auto-Populate Form when Existing Risk Area Selected ---
-  useEffect(() => {
-    // If blank or "Other" selected, clear fields
-    if (
-      !selectedVendor ||
-      !selectedPCM ||
-      !riskArea ||
-      showOtherRiskArea ||
-      !riskAreaOptions.includes(riskArea)
-    ) {
-      setRiskInsight("");
-      setMitigations(emptyMitigation());
-      return;
-    }
-    // Fetch data for this specific risk area
-    setLoadingData(true);
-    axios.get("/GetData", {
-      params: { vendor: selectedVendor, pcmid: selectedPCM, risk_Area: riskArea }
-    }).then(res => {
-      const data = Array.isArray(res.data) ? res.data[0] : res.data;
-      if (data) {
-        setRiskInsight(data.risk_Insights || "");
-        setMitigations({
-          A: data.risk_Mitigation_a || "",
-          B: data.risk_Mitigation_b || "",
-          C: data.risk_Mitigation_c || "",
-          D: data.risk_Mitigation_d || "",
-          E: data.risk_Mitigation_e || "",
         });
-      } else {
-        setRiskInsight("");
-        setMitigations(emptyMitigation());
-      }
-      setLoadingData(false);
-    }).catch(() => setLoadingData(false));
-  // Only run when user actively chooses existing risk area
-  }, [selectedVendor, selectedPCM, riskArea, showOtherRiskArea, riskAreaOptions]);
